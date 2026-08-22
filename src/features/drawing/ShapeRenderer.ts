@@ -2,6 +2,7 @@ import type { Shape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from './elements/elementTypes';
 import { ELEMENT_COLORS, pageUnitsToMm } from './elements/elementDefaults';
 import { elementBounds } from './geometry/geometryUtils';
+import { getInsetPolygon } from './geometry/geometryUtils';
 
 // --- 新增：渲染配置选项接口 ---
 export interface RenderOptions {
@@ -102,40 +103,69 @@ function drawSelection(
 
     case 'slab': {
       // ✅ 新增：板被选中时，显示向内 offset 的虚线轮廓
+      // const pts = e.geometry.points;
+      // if (pts.length >= 3) {
+      //   // 1. 计算多边形质心
+      //   let cx = 0, cy = 0;
+      //   for (const p of pts) {
+      //     cx += p.x;
+      //     cy += p.y;
+      //   }
+      //   cx /= pts.length;
+      //   cy /= pts.length;
+
+      //   // 2. 将每个顶点向质心方向收缩固定像素 (例如 6px)
+      //   const offset = 6;
+      //   const innerPts = pts.map(p => {
+      //     const dx = cx - p.x;
+      //     const dy = cy - p.y;
+      //     const dist = Math.hypot(dx, dy);
+      //     if (dist === 0) return p;
+      //     const move = Math.min(offset, dist * 0.5); // 防止极小图形过度收缩
+      //     const factor = (dist - move) / dist;
+      //     return {
+      //       x: cx + dx * factor,
+      //       y: cy + dy * factor
+      //     };
+      //   });
+
+      //   // 3. 绘制向内收缩的虚线
+      //   ctx.beginPath();
+      //   ctx.moveTo(innerPts[0].x, innerPts[0].y);
+      //   for (let i = 1; i < innerPts.length; i++) {
+      //     ctx.lineTo(innerPts[i].x, innerPts[i].y);
+      //   }
+      //   ctx.closePath();
+      //   ctx.stroke();
+      // }
+      // break;
       const pts = e.geometry.points;
       if (pts.length >= 3) {
-        // 1. 计算多边形质心
-        let cx = 0, cy = 0;
-        for (const p of pts) {
-          cx += p.x;
-          cy += p.y;
-        }
-        cx /= pts.length;
-        cy /= pts.length;
-
-        // 2. 将每个顶点向质心方向收缩固定像素 (例如 6px)
-        const offset = 6;
-        const innerPts = pts.map(p => {
-          const dx = cx - p.x;
-          const dy = cy - p.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist === 0) return p;
-          const move = Math.min(offset, dist * 0.5); // 防止极小图形过度收缩
-          const factor = (dist - move) / dist;
-          return {
-            x: cx + dx * factor,
-            y: cy + dy * factor
-          };
-        });
-
-        // 3. 绘制向内收缩的虚线
+        // ✅ 核心修改：计算向内偏移 4px 的新多边形路径
+        const insetPts = getInsetPolygon(pts, 4); 
+        
         ctx.beginPath();
-        ctx.moveTo(innerPts[0].x, innerPts[0].y);
-        for (let i = 1; i < innerPts.length; i++) {
-          ctx.lineTo(innerPts[i].x, innerPts[i].y);
+        ctx.moveTo(insetPts[0].x, insetPts[0].y);
+        for (let i = 1; i < insetPts.length; i++) {
+          ctx.lineTo(insetPts[i].x, insetPts[i].y);
         }
         ctx.closePath();
+        
+        // 绘制向内收缩的虚线选择框
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5; // 可以稍微加粗一点以增强可见性
+        ctx.setLineDash([6, 4]);
         ctx.stroke();
+        
+        // 可选：在顶点处绘制小方块控制点，提升专业 CAD 体验
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1;
+        for (const p of insetPts) {
+          ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+          ctx.strokeRect(p.x - 3, p.y - 3, 6, 6);
+        }
       }
       break;
     }

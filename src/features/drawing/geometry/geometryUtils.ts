@@ -99,6 +99,117 @@ export function polygonBounds(points: PagePoint[]): Bounds {
 }
 
 /**
+ * 计算多边形的有向面积（Shoelace Formula）。
+ * 在屏幕坐标系（Y轴向下）中：
+ * - 面积 > 0 表示顶点为顺时针 (CW) 排列
+ * - 面积 < 0 表示顶点为逆时针 (CCW) 排列
+ */
+function getSignedArea(points: PagePoint[]): number {
+  let area = 0;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  return area / 2;
+}
+
+/**
+ * 计算两条直线的交点。
+ * 直线1: p1 + t * v1
+ * 直线2: p2 + u * v2
+ */
+function getLineIntersection(
+  p1: PagePoint,
+  v1: PagePoint,
+  p2: PagePoint,
+  v2: PagePoint
+): PagePoint | null {
+  const denominator = v1.x * v2.y - v1.y * v2.x;
+  // 如果分母接近 0，说明两直线平行或共线
+  if (Math.abs(denominator) < 1e-9) {
+    return null;
+  }
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const t = (dx * v2.y - dy * v2.x) / denominator;
+  
+  return {
+    x: p1.x + t * v1.x,
+    y: p1.y + t * v1.y,
+  };
+}
+
+/**
+ * 计算多边形向内偏移 (Inset) 一定距离后的新顶点数组。
+ * 
+ * @param points 原始多边形顶点数组 (必须按顺序排列，首尾可不闭合)
+ * @param offset 向内偏移的距离 (像素)。如果为负数，则向外偏移。
+ * @returns 偏移后的新多边形顶点数组
+ */
+export function getInsetPolygon(points: PagePoint[], offset: number): PagePoint[] {
+  if (points.length < 3) return [...points];
+
+  const n = points.length;
+  // 在屏幕坐标系中，面积 > 0 代表顺时针 (CW)
+  const isCW = getSignedArea(points) > 0;
+  
+  const newPoints: PagePoint[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n];
+    const curr = points[i];
+    const next = points[(i + 1) % n];
+
+    // 当前顶点的前一条边和后一条边的向量
+    const v1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+    const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+
+    const len1 = Math.hypot(v1.x, v1.y);
+    const len2 = Math.hypot(v2.x, v2.y);
+
+    // 忽略退化的零长度边
+    if (len1 < 1e-9 || len2 < 1e-9) continue;
+
+    // 单位方向向量
+    const d1 = { x: v1.x / len1, y: v1.y / len1 };
+    const d2 = { x: v2.x / len2, y: v2.y / len2 };
+
+    // 计算指向多边形内部的单位法向量
+    // 屏幕坐标系下：
+    // - 若为 CW，沿边前进时内部在左侧 -> 逆时针旋转 90 度: (-dy, dx)
+    // - 若为 CCW，沿边前进时内部在右侧 -> 顺时针旋转 90 度: (dy, -dx)
+    const n1 = isCW ? { x: -d1.y, y: d1.x } : { x: d1.y, y: -d1.x };
+    const n2 = isCW ? { x: -d2.y, y: d2.x } : { x: d2.y, y: -d2.x };
+
+    // 将当前顶点沿两条边的内法向量分别平移 offset 距离，得到偏移后直线上的两个点
+    const p1_offset = { x: curr.x + n1.x * offset, y: curr.y + n1.y * offset };
+    const p2_offset = { x: curr.x + n2.x * offset, y: curr.y + n2.y * offset };
+
+    // 求这两条偏移后直线的交点，即为新多边形的顶点
+    const intersection = getLineIntersection(p1_offset, d1, p2_offset, d2);
+    
+    if (intersection) {
+      newPoints.push(intersection);
+    } else {
+      // 退化情况：两边几乎平行，直接取其中一条边的偏移点作为新顶点
+      newPoints.push(p1_offset);
+    }
+  }
+
+  // 过滤掉因 offset 过大导致多边形完全坍缩产生的无效点 (简单启发式保护)
+  if (newPoints.length < 3) {
+    return points; // 偏移过大，退回原多边形
+  }
+
+  return newPoints;
+}
+
+
+
+
+/**
  * Computes the axis-aligned bounding box (AABB) for any structural element.
  *
  * Handles different geometry shapes and transformations per element type:

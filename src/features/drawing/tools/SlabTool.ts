@@ -102,7 +102,7 @@ export class SlabTool extends BaseTool {
 
     if (!ctx.tempShape) {
       ctx.setTempShape({
-        ...makeBase(ctx, 'slab', { points: [point] }),
+        ...makeBase(ctx, 'slab', { points: [point, point] }),
         label,
         style: slabStyle,
         properties: {
@@ -114,7 +114,7 @@ export class SlabTool extends BaseTool {
       } as any);
     } else {
       const pts = [...(ctx.tempShape as any).geometry.points];
-      pts[pts.length - 1] = point;
+      // pts[pts.length - 1] = point;
       pts.push(point);
       ctx.setTempShape({ ...ctx.tempShape, geometry: { points: pts } } as any);
     }
@@ -123,7 +123,7 @@ export class SlabTool extends BaseTool {
   onMouseMove(e: CanvasEvent, ctx: ToolContext) {
     if (ctx.tempShape) {
       const pts = [...(ctx.tempShape as any).geometry.points];
-      if (pts.length) {
+      if (pts.length > 0) {
         // ✅ 修复：只更新纯坐标对象
         pts[pts.length - 1] = { x: e.x, y: e.y };
       }
@@ -131,13 +131,12 @@ export class SlabTool extends BaseTool {
     }
   }
 
-  onMouseUp() {}
 
   onDblClick(_: CanvasEvent, ctx: ToolContext) {
     const shape: any = ctx.tempShape;
     if (!shape) return;
     
-    // ✅ 修复：截取前面的点，并确保它们都是纯 { x, y } 对象，彻底剥离任何可能附带的事件引用
+    // ✅  截取时去掉最后一个多余的“动态点”
     const pts = shape.geometry.points.slice(0, -1).map((p: any) => ({ x: p.x, y: p.y }));
     
     if (pts.length >= 3) {
@@ -156,6 +155,8 @@ export class SlabTool extends BaseTool {
     }
     ctx.setTempShape(null);
   }
+
+  onMouseUp() {}
 
   onKeyDown(e: KeyboardEvent, ctx: ToolContext) {
     if (e.key === 'Enter') this.onDblClick({ x: 0, y: 0, rawEvent: e as any }, ctx);
