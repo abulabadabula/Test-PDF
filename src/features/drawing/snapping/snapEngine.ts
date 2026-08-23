@@ -41,8 +41,6 @@ const endpoints = (e:StructuralElement) => {
       return e.geometry.points;
     case 'portalFrame':
       return [e.geometry.start,e.geometry.end,{x:e.geometry.start.x,y:e.geometry.start.y+e.geometry.height},{x:e.geometry.end.x,y:e.geometry.end.y+e.geometry.height}];
-    case 'node':
-      return [{ x: e.geometry.x, y: e.geometry.y }];
     default:
       return [];
   }
