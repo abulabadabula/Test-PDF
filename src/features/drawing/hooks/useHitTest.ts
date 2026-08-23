@@ -1,3 +1,5 @@
+// // src/features/drawing/hooks/useHitTest.ts
+
 import { useCallback } from 'react';
 import type { Shape } from '@/app/store/slices/drawingSlice';
 import type { Layer } from '@/app/store/slices/layerSlice';
@@ -5,222 +7,139 @@ import { distance, distanceToSegment, pointInPolygon } from '../geometry/geometr
 import { hitTestStructuralElement } from '../geometry/hitTest';
 
 /**
- * Hit-test all drawable shapes on the current page.
+ * Hit tolerance used specifically for Node picking.
+ *
+ * Node picking must be more precise than slab picking. Otherwise a
+ * slab's large filled area can win over a node located at one of
+ * its corners.
+ */
+const NODE_PICK_TOLERANCE_FACTOR = 0.8;
+
+/**
+ * Hit-test one canvas point.
  *
  * Selection priority:
  *
- * 1. Higher zIndex wins.
- * 2. If zIndex is equal, the shape appearing later in the shapes array wins.
+ * 1. A nearby Node wins.
+ * 2. Otherwise the top-most non-Node object wins.
  *
- * This gives deterministic "top-most object" behaviour when objects overlap.
+ * Exactly ONE shape is returned for one normal click.
  *
- * Important:
- * - Hit testing returns ONLY ONE shape.
- * - Multi-selection is handled by SelectTool using modifier keys.
- * - This function must never return multiple objects for a single mouse point.
+ * This separation is important because a slab owns node IDs as
+ * topology, but the nodes are NOT automatically part of the slab's
+ * selection state.
  */
-export function useHitTest(
-  shapes: Shape[],
-  layers: Layer[],
-  tolerance = 5,
-) {
-  return useCallback(
-    (x: number, y: number): Shape | null => {
-      const validLayers = new Map(
-        layers
-          .filter((layer) => layer.visible && !layer.locked)
-          .map((layer) => [layer.id, layer]),
-      );
+export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
+  return useCallback((x: number, y: number): Shape | null => {
+    const validLayerIds = new Set(layers.filter((layer) => layer.visible && !layer.locked).map((layer) => layer.id));
+    const currentPageShapes = shapes.filter((shape) => validLayerIds.has(shape.layerId));
 
-      /**
-       * Build the candidate list first instead of immediately returning
-       * the first hit.
-       *
-       * This allows us to apply an explicit zIndex priority when several
-       * objects overlap at the same mouse position.
+    /*
+     * -------------------------------------------------------------
+     * 1. NODE PICKING
+     * -------------------------------------------------------------
+     *
+     * Only a genuinely nearby Node is considered here.
+     */
+    const nodeTolerance = Math.max(1, tolerance * NODE_PICK_TOLERANCE_FACTOR);
+    for (let i = currentPageShapes.length - 1; i >= 0; i -= 1) {
+      const shape = currentPageShapes[i];
+      if (!('geometry' in shape) || shape.type !== 'node') continue;
+      const g = shape.geometry;
+      if (Math.hypot(g.x - x, g.y - y) <= nodeTolerance) {
+        return shape;
+      }
+    }
+
+    /*
+     * -------------------------------------------------------------
+     * 2. ALL OTHER OBJECTS
+     * -------------------------------------------------------------
+     *
+     * Nodes are intentionally excluded because they have already
+     * been resolved in the first pass.
+     *
+     * Iterate backwards so later shapes behave like the top-most
+     * object when zIndex is equal.
+     */
+    for (let i = currentPageShapes.length - 1; i >= 0; i -= 1) {
+      const shape = currentPageShapes[i];
+
+      if ('geometry' in shape && 'style' in shape) {
+        if (shape.type === 'node') continue;
+        if (hitTestStructuralElement(shape as any, { x, y }, tolerance)) {
+          return shape;
+        }
+        continue;
+      }
+
+      /*
+       * Legacy annotation shapes.
        */
-      const candidates: Array<{ shape: Shape; index: number; zIndex: number; layerOrder: number}> = [];
+      let hit = false;
 
-      for (let i = 0; i < shapes.length; i += 1) {
-        const shape = shapes[i];
-        const layer = validLayers.get(shape.layerId);
+      switch (shape.type) {
+        case 'point':
+          hit = distance({ x, y }, { x: shape.x, y: shape.y }) <= shape.radius + tolerance;
+          break;
 
-        if (!layer) { continue}
+        case 'line':
+          hit = distanceToSegment({ x, y }, { x: shape.points[0], y: shape.points[1] }, { x: shape.points[2], y: shape.points[3] }) <= tolerance;
+          break;
 
-        let hit = false;
-
-        if ('geometry' in shape && 'style' in shape) {
-          hit = hitTestStructuralElement( shape, { x, y }, tolerance);
-        } else {
-          switch (shape.type) {
-            case 'point':
-              hit =
-                distance(
-                  { x, y },
-                  { x: shape.x, y: shape.y },
-                ) <=
-                shape.radius + tolerance;
-              break;
-
-            case 'line':
-              hit =
-                distanceToSegment(
-                  { x, y },
-                  {
-                    x: shape.points[0],
-                    y: shape.points[1],
-                  },
-                  {
-                    x: shape.points[2],
-                    y: shape.points[3],
-                  },
-                ) <= tolerance;
-              break;
-
-            case 'polyline':
-            case 'measure':
-              for (
-                let j = 0;
-                j < shape.points.length - 2;
-                j += 2
-              ) {
-                const segmentHit =
-                  distanceToSegment(
-                    { x, y },
-                    {
-                      x: shape.points[j],
-                      y: shape.points[j + 1],
-                    },
-                    {
-                      x: shape.points[j + 2],
-                      y: shape.points[j + 3],
-                    },
-                  ) <= tolerance;
-
-                if (segmentHit) {
-                  hit = true;
-                  break;
-                }
-              }
-              break;
-
-            case 'polygon':
-              hit = pointInPolygon(
-                { x, y },
-                Array.from(
-                  {
-                    length: shape.points.length / 2,
-                  },
-                  (_, j) => ({
-                    x: shape.points[j * 2],
-                    y: shape.points[j * 2 + 1],
-                  }),
-                ),
-              );
-              break;
-
-            case 'rectangle':
-              hit =
-                x >= shape.x - tolerance &&
-                x <= shape.x + shape.width + tolerance &&
-                y >= shape.y - tolerance &&
-                y <= shape.y + shape.height + tolerance;
-              break;
-
-            case 'circle':
-              hit =
-                distance(
-                  { x, y },
-                  {
-                    x: shape.x,
-                    y: shape.y,
-                  },
-                ) <=
-                shape.radius + tolerance;
-              break;
-
-            case 'text': {
-              const width = shape.text.length * shape.fontSize * 0.6;
-              const height = shape.fontSize * 1.2;
-
-              hit =
-                x >= shape.x &&
-                x <= shape.x + width &&
-                y >= shape.y &&
-                y <= shape.y + height;
-
+        case 'polyline':
+        case 'measure': {
+          for (let j = 0; j < shape.points.length - 2; j += 2) {
+            if (distanceToSegment({ x, y }, { x: shape.points[j], y: shape.points[j + 1] }, { x: shape.points[j + 2], y: shape.points[j + 3] }) <= tolerance) {
+              hit = true;
               break;
             }
-
-            default:
-              hit = false;
-              break;
           }
+          break;
         }
 
-        if (!hit) {
-          continue;
+        case 'polygon': {
+          const points = Array.from({ length: shape.points.length / 2 }, (_, index) => ({
+            x: shape.points[index * 2],
+            y: shape.points[index * 2 + 1],
+          }));
+          hit = pointInPolygon({ x, y }, points);
+          if (!hit && points.length >= 2) {
+            for (let j = 0; j < points.length; j += 1) {
+              const a = points[j];
+              const b = points[(j + 1) % points.length];
+              if (distanceToSegment({ x, y }, a, b) <= tolerance) {
+                hit = true;
+                break;
+              }
+            }
+          }
+          break;
         }
 
-        /**
-         * Structural elements have a required zIndex.
-         *
-         * Legacy shapes have an optional zIndex, so zero is used as the
-         * default value.
-         */
-        const zIndex =
-          'zIndex' in shape &&
-          typeof shape.zIndex === 'number'
-            ? shape.zIndex
-            : 0;
+        case 'rectangle':
+          hit = x >= shape.x - tolerance && x <= shape.x + shape.width + tolerance &&
+                y >= shape.y - tolerance && y <= shape.y + shape.height + tolerance;
+          break;
 
-        candidates.push({
-          shape,
-          index: i,
-          zIndex,
-          layerOrder: layer.order,
-        });
+        case 'circle':
+          hit = distance({ x, y }, { x: shape.x, y: shape.y }) <= shape.radius + tolerance;
+          break;
+
+        case 'text': {
+          const width = shape.text.length * shape.fontSize * 0.6;
+          const height = shape.fontSize * 1.2;
+          hit = x >= shape.x && x <= shape.x + width && y >= shape.y && y <= shape.y + height;
+          break;
+        }
+
+        default:
+          hit = false;
       }
 
-      if (candidates.length === 0) {
-        return null;
-      }
+      if (hit) return shape;
+    }
 
-      /**
-       * Determine the top-most object.
-       *
-       * The primary criterion is zIndex.
-       *
-       * Layer order is used as the secondary criterion. Higher layer order
-       * represents a layer placed above lower-order layers.
-       *
-       * Finally, the original array index is used as a deterministic
-       * tie-breaker. Since shapes are appended to the array when created,
-       * the later shape is considered visually on top when all other
-       * priorities are equal.
-       */
-      candidates.sort((a, b) => {
-        if (a.layerOrder !== b.layerOrder) {
-          return b.layerOrder - a.layerOrder;
-        }
-
-        if (a.zIndex !== b.zIndex) {
-          return b.zIndex - a.zIndex;
-        }
-
-        return b.index - a.index;
-      });
-
-      /**
-       * IMPORTANT:
-       *
-       * Always return exactly ONE shape.
-       *
-       * This guarantees that a single click in an overlapping area cannot
-       * select two or more objects.
-       */
-      return candidates[0].shape;
-    },
-    [shapes, layers, tolerance],
-  );
+    return null;
+  }, [shapes, layers, tolerance]);
 }

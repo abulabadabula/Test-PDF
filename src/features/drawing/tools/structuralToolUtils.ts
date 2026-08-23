@@ -1,3 +1,5 @@
+// src/features/drawing/tools/structuralToolUtils.ts
+
 import type { ToolContext } from './BaseTool';
 import type { StructuralElementType } from '../elements/elementTypes';
 import {

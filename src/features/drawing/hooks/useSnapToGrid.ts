@@ -1,3 +1,5 @@
+// src/features/drawing/hooks/useSnapToGrid.ts
+
 import { useCallback } from 'react';
 import { useAppSelector } from '@/app/store/hooks';
 
