@@ -78,7 +78,7 @@
 
 import { BaseTool, CanvasEvent, ToolContext } from './BaseTool';
 import { getStructuralDefaults, ELEMENT_COLORS } from '../elements/elementDefaults';
-import { makeBase, ensureLabel } from './structuralToolUtils';
+import { makeBase, ensureLabel, getOrCreateNode } from './structuralToolUtils';
 
 export class SlabTool extends BaseTool {
   cursor = 'crosshair';
@@ -136,23 +136,34 @@ export class SlabTool extends BaseTool {
     const shape: any = ctx.tempShape;
     if (!shape) return;
     
-    // ✅  截取时去掉最后一个多余的“动态点”
-    const pts = shape.geometry.points.slice(0, -1).map((p: any) => ({ x: p.x, y: p.y }));
+    // 移除最后一个重复的追踪点
+    const pts = shape.geometry.points.slice(0, -1);
     
     if (pts.length >= 3) {
-      ctx.addShape({ 
-        ...shape, 
-        geometry: { points: pts },
-        // 确保最终落地的板也保留透明填充和专属颜色
-        style: shape.style || {
-          color: ELEMENT_COLORS.slab,
-          strokeWidth: 1.5,
-          opacity: 1,
-          fillColor: ELEMENT_COLORS.slab,
-          fillOpacity: 0.15,
+      const nodeIds: string[] = [];
+      
+      // 为每个顶点解析或创建 Node
+      pts.forEach((p: { x: number; y: number }) => {
+        const nodeResult = getOrCreateNode(ctx, p, 2);
+        
+        // 如果是新创建的节点，则添加到画布
+        if (nodeResult.isNew && nodeResult.shape) {
+          ctx.addShape(nodeResult.shape);
         }
+        nodeIds.push(nodeResult.id);
+      });
+
+      // 添加最终的 Slab，并附带 nodeIds 建立拓扑关联
+      ctx.addShape({
+        ...shape,
+        geometry: { points: pts },
+        properties: {
+          ...shape.properties,
+          nodeIds,
+        },
       } as any);
     }
+    
     ctx.setTempShape(null);
   }
 

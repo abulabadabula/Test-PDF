@@ -26,6 +26,7 @@ import { ColumnTool } from '../tools/ColumnTool';
 import { BeamTool } from '../tools/BeamTool';
 import { WallTool } from '../tools/WallTool';
 import { SlabTool } from '../tools/SlabTool';
+import { RectSlabTool } from '../tools/RectSlabTool';
 import { PortalFrameTool } from '../tools/PortalFrameTool';
 import { findSnapPoint } from '../snapping/snapEngine';
 import { screenToPage } from '@/core/coordinate/coordinateUtils';
@@ -38,6 +39,7 @@ const toolInstances: Record<string, BaseTool> = {
   beam: new BeamTool(),
   wall: new WallTool(),
   slab: new SlabTool(),
+  rectSlab: new RectSlabTool(),
   portalFrame: new PortalFrameTool(),
   point: new PointTool(),
   line: new LineTool(),
@@ -349,7 +351,7 @@ export function useCanvasEvents(
 
       if (!event.ctrlKey && !event.metaKey && !event.altKey) {
         const toolMap: Record<string, string> = {
-          v: 'select', c: 'column', b: 'beam', w: 'wall', s: 'slab', p: 'portalFrame', m: 'measure',
+          v: 'select', c: 'column', b: 'beam', w: 'wall', s: 'slab', f: 'rectSlab', p: 'portalFrame', m: 'measure',
         };
         const nextTool = toolMap[key];
         if (nextTool) {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { setActiveTool, ToolType } from '@/app/store/slices/drawingSlice';
-import { MousePointer2, Columns3, Minus, BrickWall, Layers3, Warehouse, Ruler, Magnet,
+import { MousePointer2, Columns3, Minus, BrickWall, Layers3, Warehouse, Ruler, Magnet, 
 } from 'lucide-react';
 import { toggleSnap, toggleSnapType } from '@/app/store/slices/uiSlice';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ const TOOLS: { id: ToolType; label: string; icon: React.ReactNode; shortcut: str
   { id: 'beam', label: 'Beam', icon: <Minus className="w-4 h-4" />, shortcut: 'B' },
   { id: 'wall', label: 'Wall', icon: <BrickWall className="w-4 h-4" />, shortcut: 'W' },
   { id: 'slab', label: 'Slab', icon: <Layers3 className="w-4 h-4" />, shortcut: 'S' },
+  { id: 'rectSlab', label: 'Rect Slab', icon: <Layers3 className="w-4 h-4" />, shortcut: 'F' },
   { id: 'portalFrame', label: 'Portal Frame', icon: <Warehouse className="w-4 h-4" />, shortcut: 'P' },
   { id: 'measure', label: 'Measure', icon: <Ruler className="w-4 h-4" />, shortcut: 'M' },
 ];

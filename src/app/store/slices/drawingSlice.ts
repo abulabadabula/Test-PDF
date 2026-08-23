@@ -5,7 +5,7 @@ import type { RootState } from '../index';
 import type { StructuralElement, StructuralElementType } from '@/features/drawing/elements/elementTypes';
 
 export type ToolType =
-  | 'select' | 'column' | 'beam' | 'wall' | 'slab' | 'portalFrame'
+  | 'select' | 'column' | 'beam' | 'wall' | 'slab' | 'portalFrame' | 'rectSlab'
   | 'point' | 'line' | 'polyline' | 'polygon' | 'rectangle' | 'circle'
   | 'text' | 'measure' | 'eraser';
 
