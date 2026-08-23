@@ -10,18 +10,18 @@ export function InspectorPanel() {
       <Tabs defaultValue="layers" className="flex flex-col h-full">
         <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent h-10 px-2 gap-1">
           <TabsTrigger value="layers" className="text-xs gap-1.5 data-[state=active]:bg-editor-active data-[state=active]:text-accent">
-            <Layers className="w-3.5 h-3.5" /> Layers
+            <TreePine className="w-3.5 h-3.5" /> Structure
           </TabsTrigger>
           <TabsTrigger value="properties" className="text-xs gap-1.5 data-[state=active]:bg-editor-active data-[state=active]:text-accent">
             <Sliders className="w-3.5 h-3.5" /> Properties
           </TabsTrigger>
           <TabsTrigger value="tree" className="text-xs gap-1.5 data-[state=active]:bg-editor-active data-[state=active]:text-accent">
-            <TreePine className="w-3.5 h-3.5" /> Structure
+            <Layers className="w-3.5 h-3.5" /> Layers
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="layers" className="flex-1 overflow-y-auto mt-0 p-2">
-          <LayerPanel />
+          <TreeViewPanel />
         </TabsContent>
         
         <TabsContent value="properties" className="flex-1 overflow-y-auto mt-0 p-3">
@@ -31,7 +31,7 @@ export function InspectorPanel() {
         </TabsContent>
 
         <TabsContent value="tree" className="flex-1 overflow-y-auto mt-0 p-2">
-          <TreeViewPanel />
+          <LayerPanel />
         </TabsContent>
       </Tabs>
     </div>

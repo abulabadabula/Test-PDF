@@ -10,6 +10,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit';
 import type { NodeElement } from '../elements/elementTypes';
 
+// 创建基础结构元素，如节点、梁、柱等，带有默认样式和属性
 export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry: any) {
   const state = ctx.getState();
   const drawing = state.drawing;
@@ -35,6 +36,7 @@ export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry
   } as any;
 }
 
+// 获取指定类型的结构元素默认值，考虑当前绘图比例
 export function structuralDefaults(
   type: StructuralElementType,
   scaleDenominator: number,

@@ -1,7 +1,7 @@
 // src/features/drawing/tools/RectSlabTool.ts
 
 import { BaseTool, CanvasEvent, ToolContext } from './BaseTool';
-import { getStructuralDefaults } from '../elements/elementDefaults';
+import { getStructuralDefaults, ELEMENT_COLORS } from '../elements/elementDefaults';
 import { makeBase, ensureLabel, getOrCreateNode } from './structuralToolUtils';
 import { deleteShape } from '@/app/store/slices/drawingSlice';
 import { nanoid } from 'nanoid';
@@ -72,6 +72,13 @@ export class RectSlabTool extends BaseTool {
         points: [this.startPoint, this.startPoint, this.startPoint, this.startPoint],
       });
 
+      const slabStyle = {
+        color: ELEMENT_COLORS.slab,
+        strokeWidth: 1.5,
+        opacity: 1,
+        fillColor: ELEMENT_COLORS.slab,
+        fillOpacity: 0.15,
+      };
       // 2. 确保预览时有填充效果：如果当前全局填充色是透明，则使用默认的 slab 蓝色 (#2563eb)
       const previewFillColor = baseShape.style.fillColor === 'transparent' 
         ? '#059669' 
@@ -82,7 +89,7 @@ export class RectSlabTool extends BaseTool {
         ...baseShape,
         label,
         style: {
-          ...baseShape.style,
+          ...slabStyle,
           fillColor: previewFillColor,
           fillOpacity: 0.15, // 设置 15% 的半透明填充，完美复刻 slabtools 的预览质感
         },
