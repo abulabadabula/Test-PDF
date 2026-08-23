@@ -102,43 +102,6 @@ function drawSelection(
     }
 
     case 'slab': {
-      // ✅ 新增：板被选中时，显示向内 offset 的虚线轮廓
-      // const pts = e.geometry.points;
-      // if (pts.length >= 3) {
-      //   // 1. 计算多边形质心
-      //   let cx = 0, cy = 0;
-      //   for (const p of pts) {
-      //     cx += p.x;
-      //     cy += p.y;
-      //   }
-      //   cx /= pts.length;
-      //   cy /= pts.length;
-
-      //   // 2. 将每个顶点向质心方向收缩固定像素 (例如 6px)
-      //   const offset = 6;
-      //   const innerPts = pts.map(p => {
-      //     const dx = cx - p.x;
-      //     const dy = cy - p.y;
-      //     const dist = Math.hypot(dx, dy);
-      //     if (dist === 0) return p;
-      //     const move = Math.min(offset, dist * 0.5); // 防止极小图形过度收缩
-      //     const factor = (dist - move) / dist;
-      //     return {
-      //       x: cx + dx * factor,
-      //       y: cy + dy * factor
-      //     };
-      //   });
-
-      //   // 3. 绘制向内收缩的虚线
-      //   ctx.beginPath();
-      //   ctx.moveTo(innerPts[0].x, innerPts[0].y);
-      //   for (let i = 1; i < innerPts.length; i++) {
-      //     ctx.lineTo(innerPts[i].x, innerPts[i].y);
-      //   }
-      //   ctx.closePath();
-      //   ctx.stroke();
-      // }
-      // break;
       const pts = e.geometry.points;
       if (pts.length >= 3) {
         // ✅ 核心修改：计算向内偏移 4px 的新多边形路径

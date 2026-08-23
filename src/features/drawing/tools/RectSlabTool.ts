@@ -6,28 +6,6 @@ import { makeBase, ensureLabel, getOrCreateNode } from './structuralToolUtils';
 import { deleteShape } from '@/app/store/slices/drawingSlice';
 import { nanoid } from 'nanoid';
 
-/**
- * Rectangle slab tool.
- *
- * Interaction:
- *
- * 1. First click:
- *    - resolve/reuse/create Node 1 immediately
- *    - start the rectangle preview
- *
- * 2. Mouse move:
- *    - update the temporary rectangle continuously
- *
- * 3. Mouse up:
- *    - do nothing
- *
- * 4. Second click:
- *    - validate that both width and height are non-zero
- *    - resolve/reuse/create the four corner nodes
- *    - commit the slab
- *
- * This is intentionally click-click rather than click-drag.
- */
 export class RectSlabTool extends BaseTool {
   cursor = 'crosshair';
 
@@ -89,12 +67,25 @@ export class RectSlabTool extends BaseTool {
       const drawing = ctx.getState().drawing;
       const defaults = getStructuralDefaults(drawing.scaleDenominator, drawing.scaleNumerator).slab;
       const label = ensureLabel(ctx, 'slab');
+      // 1. 先获取基础的 shape 配置
+      const baseShape = makeBase(ctx, 'slab', {
+        points: [this.startPoint, this.startPoint, this.startPoint, this.startPoint],
+      });
+
+      // 2. 确保预览时有填充效果：如果当前全局填充色是透明，则使用默认的 slab 蓝色 (#2563eb)
+      const previewFillColor = baseShape.style.fillColor === 'transparent' 
+        ? '#059669' 
+        : baseShape.style.fillColor;
+
+      // 3. 显式设置 fillColor 和 fillOpacity
       ctx.setTempShape({
-        id: nanoid(),
-        ...makeBase(ctx, 'slab', {
-          points: [this.startPoint, this.startPoint, this.startPoint, this.startPoint],
-        }),
+        ...baseShape,
         label,
+        style: {
+          ...baseShape.style,
+          fillColor: previewFillColor,
+          fillOpacity: 0.15, // 设置 15% 的半透明填充，完美复刻 slabtools 的预览质感
+        },
         properties: {
           label,
           thickness: defaults.realThickness,
