@@ -10,4 +10,5 @@ export interface PdfCanvasProps {
 
 export interface PdfDropZoneProps {
   onFileSelect: (file: File) => void;
+  onBlankCanvas?: () => void; // 👈 新增：支持直接进入空白画布模式
 }
