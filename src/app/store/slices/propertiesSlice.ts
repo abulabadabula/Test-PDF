@@ -57,8 +57,20 @@ export const propertiesSlice = createSlice({
     deleteSection: (state, action: PayloadAction<string>) => {
       state.sections = state.sections.filter(s => s.id !== action.payload);
     },
+    updateMaterial: (state, action: PayloadAction<{ id: string; changes: Partial<Omit<Material, 'id' | 'createdAt'>> }>) => {
+      const index = state.materials.findIndex(m => m.id === action.payload.id);
+      if (index !== -1) {
+        Object.assign(state.materials[index], action.payload.changes);
+      }
+    },
+    updateSection: (state, action: PayloadAction<{ id: string; changes: Partial<Omit<Section, 'id' | 'createdAt'>> }>) => {
+      const index = state.sections.findIndex(s => s.id === action.payload.id);
+      if (index !== -1) {
+        Object.assign(state.sections[index], action.payload.changes);
+      }
+    },
   },
 });
 
-export const { addMaterial, deleteMaterial, addSection, deleteSection } = propertiesSlice.actions;
+export const { addMaterial, deleteMaterial, updateMaterial, addSection, deleteSection, updateSection } = propertiesSlice.actions;
 export default propertiesSlice.reducer;
