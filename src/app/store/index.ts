@@ -13,42 +13,22 @@ import {
   undoableMiddleware,
 } from './slices/drawingSlice';
 
-import {
-  layerSlice,
-} from './slices/layerSlice';
-
-import {
-  uiSlice,
-} from './slices/uiSlice';
-
-import {
-  aiSlice,
-} from './slices/aiSlice';
-
-import {
-  pageCoordinateSlice,
-} from './slices/pageCoordinateSlice';
+import { layerSlice } from './slices/layerSlice';
+import { uiSlice } from './slices/uiSlice';
+import { aiSlice } from './slices/aiSlice';
+import { pageCoordinateSlice } from './slices/pageCoordinateSlice';
+import { propertiesSlice } from './slices/propertiesSlice';
 
 export const store =
   configureStore({
     reducer: {
-      pdf:
-        pdfSlice.reducer,
-
-      drawing:
-        drawingSlice.reducer,
-
-      pageCoordinate:
-        pageCoordinateSlice.reducer,
-
-      layer:
-        layerSlice.reducer,
-
-      ui:
-        uiSlice.reducer,
-
-      ai:
-        aiSlice.reducer,
+      pdf: pdfSlice.reducer,
+      drawing: drawingSlice.reducer,
+      pageCoordinate: pageCoordinateSlice.reducer,
+      layer: layerSlice.reducer,
+      ui: uiSlice.reducer,
+      ai: aiSlice.reducer,
+      properties: propertiesSlice.reducer,
     },
 
     middleware:

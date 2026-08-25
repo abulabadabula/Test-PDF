@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { DisplaySettingsDialog } from './DisplaySettingsDialog';
 import { MaterialDialog } from './MaterialDialog';
+import { PropertiesDialog } from './PropertiesDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,6 +73,7 @@ export function AppHeader() {
           </nav>
         </div>
 
+        <PropertiesDialog />
         <div className="flex items-center gap-1">
 
           {/* 左侧面板开关 */}
