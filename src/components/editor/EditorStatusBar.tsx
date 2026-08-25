@@ -12,7 +12,7 @@ import {
   subscribeCursorCoordinate,
   type CursorCoordinateEvent,
 } from '@/core/coordinate/coordinateEvents';
-import { ZoomIn, ZoomOut, Maximize, Crosshair, X} from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Minimize, Crosshair, X, Disc} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function EditorStatusBar({
@@ -23,16 +23,9 @@ export function EditorStatusBar({
   onFitPage?: () => void;
 }) {
   const dispatch = useAppDispatch();
-  const {
-    currentPage,
-    totalPages,
-    scale,
-  } = useAppSelector((s) => s.pdf);
+  const { currentPage, totalPages, scale } = useAppSelector((s) => s.pdf);
   const pageCoordinateSystem = useAppSelector((state) =>
-    selectPageCoordinateSystem(
-      state,
-      currentPage
-    )
+    selectPageCoordinateSystem( state, currentPage )
   );
   const originMode = useAppSelector((state) => state.pageCoordinate.originMode);
   const [cursor, setCursor] =
@@ -40,6 +33,17 @@ export function EditorStatusBar({
 
   useEffect(() => {
     return subscribeCursorCoordinate(setCursor);
+  }, []);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
   }, []);
 
   const zoomIn = () => dispatch( setScale( Math.min( 4.0, scale + 0.25)));
@@ -102,6 +106,19 @@ export function EditorStatusBar({
     }
   };
 
+  // 👇 3. 新增：切换全屏的方法
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      // 请求整个文档根元素进入全屏
+      document.documentElement.requestFullscreen().catch(err => {
+        console.log(`全屏请求失败: ${err.message}`);
+      });
+    } else {
+      // 退出全屏
+      document.exitFullscreen();
+    }
+  };
+
   return (
     <footer className="h-8 flex items-center justify-between px-3 bg-editor-toolbar border-t border-border text-xs text-muted-foreground shrink-0">
       {/* =========================================================
@@ -115,52 +132,15 @@ export function EditorStatusBar({
         {/* Page navigation */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() =>
-                dispatch(
-                  setCurrentPage(
-                    Math.max(
-                      1,
-                      currentPage - 1
-                    )
-                  )
-                )
-              }
-            >
-              ‹
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() =>
-                dispatch(
-                  setCurrentPage(
-                    Math.min(
-                      totalPages,
-                      currentPage + 1
-                    )
-                  )
-                )
-              }
-            >
-              ›
-            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => dispatch( setCurrentPage( Math.max( 1, currentPage - 1)))}>‹</Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => dispatch( setCurrentPage( Math.min( totalPages, currentPage + 1)))}>›</Button>
           </div>
         )}
         <div className="w-px h-4 bg-border" />
         {/* =====================================================
             DRAWING SCALE
             ===================================================== */}
-        <span
-          className="
-            font-mono
-            whitespace-nowrap
-          "
-        >
+        <span className="font-mono whitespace-nowrap">
           Scale{' '}
           <strong>
             {scaleText}
@@ -169,22 +149,7 @@ export function EditorStatusBar({
         {/* =====================================================
             SET ORIGIN
             ===================================================== */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="
-            h-6
-            text-xs
-            px-2
-            gap-1
-            whitespace-nowrap
-          "
-          onClick={() =>
-            dispatch(
-              setOriginMode(true)
-            )
-          }
-        >
+        <Button variant="ghost" size="sm" className="h-6 text-xs px-2 gap-1 whitespace-nowrap" onClick={() => dispatch( setOriginMode(true))}>
           <Crosshair className="w-3.5 h-3.5" />
           Set Origin
         </Button>
@@ -192,48 +157,23 @@ export function EditorStatusBar({
         {/* =====================================================
             CANCEL ORIGIN BUTTON (NEW)
             ===================================================== */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="
-            h-6
-            text-xs
-            px-2
-            gap-1
-            whitespace-nowrap
-          "
-          disabled={isCancelDisabled}
-          onClick={handleCancelOrigin}
-          title="取消设置原点"
-        >
+        <Button variant="ghost" size="sm" className="h-6 text-xs px-2 gap-1 whitespace-nowrap" disabled={isCancelDisabled} onClick={handleCancelOrigin} title="取消设置原点">
           <X className="w-3.5 h-3.5" />
-          取消
+          Cancel
         </Button>
 
         <div className="w-px h-4 bg-border" />
         {/* =====================================================
             PDF PAGE COORDINATES
             ===================================================== */}
-        <span
-          className="
-            font-mono
-            whitespace-nowrap
-          "
-          title="PDF page X coordinate"
-        >
+        <span className="font-mono whitespace-nowrap" title="PDF page X coordinate">
           PDF X:{' '}
           {pageX !== null
             ? pageX.toFixed(2)
             : '—'}
           {' pt'}
         </span>
-        <span
-          className="
-            font-mono
-            whitespace-nowrap
-          "
-          title="PDF page Y coordinate"
-        >
+        <span className="font-mono whitespace-nowrap" title="PDF page Y coordinate">
           PDF Y:{' '}
           {pageY !== null
             ? pageY.toFixed(2)
@@ -244,14 +184,7 @@ export function EditorStatusBar({
         {/* =====================================================
             ENGINEERING COORDINATES
             ===================================================== */}
-        <span
-          className="
-            font-mono
-            whitespace-nowrap
-            font-medium
-          "
-          title="Engineering X coordinate based on current origin and drawing scale"
-        >
+        <span className="font-mono whitespace-nowrap font-medium" title="Engineering X coordinate based on current origin and drawing scale">
           ENG X:{' '}
           {engineeringX !== null
             ? engineeringX.toFixed(
@@ -261,14 +194,7 @@ export function EditorStatusBar({
           {' '}
           {coordinateUnit}
         </span>
-        <span
-          className="
-            font-mono
-            whitespace-nowrap
-            font-medium
-          "
-          title="Engineering Y coordinate based on current origin and drawing scale"
-        >
+        <span className="font-mono whitespace-nowrap font-medium" title="Engineering Y coordinate based on current origin and drawing scale">
           ENG Y:{' '}
           {engineeringY !== null
             ? engineeringY.toFixed(
@@ -283,91 +209,44 @@ export function EditorStatusBar({
       {/* =========================================================
           RIGHT SIDE
           ========================================================= */}
-      <div
-        className="
-          flex
-          items-center
-          gap-2
-          shrink-0
-        "
-      >
+      <div className="flex items-center gap-2 shrink-0">
         {/* Zoom Out */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={zoomOut}
-        >
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomOut}>
           <ZoomOut className="w-3.5 h-3.5" />
         </Button>
         {/* Zoom percentage */}
-        <span
-          className="
-            w-12
-            text-center
-            font-mono
-          "
-        >
-          {Math.round(
-            scale * 100
-          )}
-          %
+        <span className="w-12 text-center font-mono">
+          {Math.round(  scale * 100)} %
         </span>
         {/* Zoom In */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={zoomIn}
-        >
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomIn}>
           <ZoomIn className="w-3.5 h-3.5" />
         </Button>
-        <div
-          className="
-            w-px
-            h-3
-            bg-border
-            mx-1
-          "
-        />
+        <div className="w-px h-3 bg-border mx-1" />
         {/* Fit Width */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="
-            h-6
-            text-xs
-            px-2
-          "
-          onClick={onFitWidth}
-        >
+        <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onFitWidth}>
           Fit Width
         </Button>
         {/* Fit Page */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="
-            h-6
-            text-xs
-            px-2
-          "
-          onClick={onFitPage}
-        >
+        <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onFitPage}>
           Fit Page
         </Button>
         {/* Reset zoom */}
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => dispatch( setScale(1.0))}>
+          <Disc className="w-3.5 h-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
-          onClick={() =>
-            dispatch(
-              setScale(1.0)
-            )
-          }
+          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          onClick={handleToggleFullscreen}
+          title={isFullscreen ? "退出全屏 (Esc)" : "进入全屏"}
         >
-          <Maximize className="w-3.5 h-3.5" />
+          {isFullscreen ? (
+            <Minimize className="w-3.5 h-3.5" />
+          ) : (
+            <Maximize className="w-3.5 h-3.5" />
+          )}
         </Button>
       </div>
     </footer>
