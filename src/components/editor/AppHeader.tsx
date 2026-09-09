@@ -2,33 +2,32 @@ import React, { useState } from 'react';
 import { 
   FileText, Undo2, Redo2, Save, Download, Wrench,
   PanelLeft, PanelLeftClose, 
-  PanelRight, PanelRightClose,
-  Box // 引入 Box 图标用于 Define 菜单
+  PanelRight, PanelRightClose // 1. 引入右侧面板图标
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DisplaySettingsDialog } from './DisplaySettingsDialog';
-// 替换为新的独立对话框组件
-import { MaterialManagerDialog } from './MaterialManagerDialog';
-import { SectionManagerDialog } from './SectionManagerDialog';
+import { MaterialDialog } from './MaterialDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+// 2. 引入 Redux hooks 和右侧面板的 action
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { toggleLeftPanel, toggleToolbar, toggleRightPanel } from '@/app/store/slices/uiSlice';
+import { toggleLeftPanel, toggleRightPanel, toggleToolbar } from '@/app/store/slices/uiSlice';
 
 export function AppHeader() {
   const dispatch = useAppDispatch();
-  const leftPanelOpen = useAppSelector((s) => s.ui.leftPanelOpen);
-  const toolbarCollapsed = useAppSelector((s) => s.ui.toolbarCollapsed);
-  const rightPanelOpen = useAppSelector((s) => s.ui.rightPanelOpen);
   
-  // 管理独立对话框的打开状态
-  const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
-  const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
-  const [isDefineMenuOpen, setIsDefineMenuOpen] = useState(false);
+  // 3. 读取左右面板的展开状态
+  const leftPanelOpen = useAppSelector((state) => state.ui.leftPanelOpen);
+  const rightPanelOpen = useAppSelector((state) => state.ui.rightPanelOpen);
+  const toolbarCollapsed = useAppSelector((state) => state.ui.toolbarCollapsed); 
+
+  const [activeMaterial, setActiveMaterial] = useState<'concrete' | 'steel' | 'timber' | null>(null);
+  const [isMaterialMenuOpen, setIsMaterialMenuOpen] = useState(false);
 
   const menuItems = ['File', 'Edit', 'View', 'Tools'];
 
@@ -36,6 +35,7 @@ export function AppHeader() {
     <>
       <header className="h-12 flex items-center justify-between px-4 bg-editor-toolbar border-b border-border shrink-0">
         <div className="flex items-center gap-4">
+
 
           <div className="flex items-center gap-2 font-semibold text-base tracking-tight">
             <div className="w-6 h-6 bg-accent rounded flex items-center justify-center text-accent-foreground">
@@ -54,30 +54,27 @@ export function AppHeader() {
               </button>
             ))}
             
-            {/* 统一的 Define 菜单 */}
-            <DropdownMenu open={isDefineMenuOpen} onOpenChange={setIsDefineMenuOpen}>
+            <DropdownMenu open={isMaterialMenuOpen} onOpenChange={setIsMaterialMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <button 
-                  className="px-3 py-1.5 rounded hover:bg-editor-hover hover:text-foreground transition-colors flex items-center gap-2"
-                  onPointerEnter={() => setIsDefineMenuOpen(true)}
+                  className="px-3 py-1.5 rounded hover:bg-editor-hover hover:text-foreground transition-colors"
+                  onPointerEnter={() => setIsMaterialMenuOpen(true)}
                 >
-                  <Box className="w-4 h-4" />
-                  Define
+                  Material
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48" onPointerLeave={() => setIsDefineMenuOpen(false)}>
-                <DropdownMenuItem onClick={() => { setIsMaterialDialogOpen(true); setIsDefineMenuOpen(false); }}>
-                  Material
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setIsSectionDialogOpen(true); setIsDefineMenuOpen(false); }}>
-                  Section
-                </DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-40" onPointerLeave={() => setIsMaterialMenuOpen(false)}>
+                <DropdownMenuItem onClick={() => { setActiveMaterial('concrete'); setIsMaterialMenuOpen(false); }}>Concrete</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setActiveMaterial('steel'); setIsMaterialMenuOpen(false); }}>Steel</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setActiveMaterial('timber'); setIsMaterialMenuOpen(false); }}>Timber</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </nav>
         </div>
 
         <div className="flex items-center gap-1">
+
+          {/* 左侧面板开关 */}
           <Button 
             variant="ghost" 
             size="icon" 
@@ -88,14 +85,17 @@ export function AppHeader() {
             {leftPanelOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
           </Button>
 
+          {/* 👇 工具条开关按钮：直接复用 toolbarCollapsed */}
           <Button 
             variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => dispatch(toggleToolbar())} 
-            title={toolbarCollapsed ? "显示工具条" : "隐藏工具条"} 
+            onClick={() => dispatch(toggleToolbar())} // 👈 调用你现有的 action
+            title={toolbarCollapsed ? "显示工具条" : "隐藏工具条"} // 👈 提示文字也取反
           >
+            {/* 👇 图标透明度逻辑取反：当 !collapsed (即展开) 时高亮 */}
             <Wrench className={`w-4 h-4 ${!toolbarCollapsed ? 'opacity-100' : 'opacity-40'}`} /> 
           </Button>
 
+          {/* 4. 新增：右侧面板开关按钮（放在右侧功能区的最左边） */}
           <Button 
             variant="ghost" 
             size="icon" 
@@ -124,9 +124,7 @@ export function AppHeader() {
         </div>
       </header>
 
-      {/* 渲染独立的对话框组件 */}
-      <MaterialManagerDialog open={isMaterialDialogOpen} onOpenChange={setIsMaterialDialogOpen} />
-      <SectionManagerDialog open={isSectionDialogOpen} onOpenChange={setIsSectionDialogOpen} />
+      <MaterialDialog materialType={activeMaterial} onClose={() => setActiveMaterial(null)} />
     </>
   );
 }
