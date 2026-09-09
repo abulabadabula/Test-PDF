@@ -16,6 +16,20 @@ export interface ElementStyle {
   fillOpacity?: number;
 }
 
+// ============================================================================
+// NODE CONSTRAINTS
+// ============================================================================
+
+export interface NodeConstraints {
+  ux?: boolean;
+  uy?: boolean;
+  uz?: boolean;
+
+  rx?: boolean;
+  ry?: boolean;
+  rz?: boolean;
+}
+
 export interface StructuralBase {
   id: string;
   type: StructuralElementType;
@@ -68,6 +82,7 @@ export interface PortalFrameGeometry {
 export interface NodeElement extends StructuralBase {
   type: 'node';
   geometry: NodeGeometry;
+  constraints?: NodeConstraints;
   properties: {
     label: string;
     x?: number;
