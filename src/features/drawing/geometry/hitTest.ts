@@ -21,11 +21,29 @@ export function hitTestStructuralElement(element: StructuralElement, p:{x:number
       return distanceToSegment(p,g.start,g.end)<=g.thickness/2+tolerance;
     }
     case 'slab': {
-      return pointInPolygon(p,element.geometry.points) || (() => {
-        const pts=element.geometry.points;
-        for(let i=0;i<pts.length;i++){ if(distanceToSegment(p,pts[i],pts[(i+1)%pts.length])<=tolerance) return true; }
-        return false;
-      })();
+      const pts = element.geometry.points;
+      if (pts.length < 3) return false;
+      if (!pointInPolygon(p, pts)) return false;
+
+      // 略微缩小 slab 的选择判定范围（向内收缩边距），
+      // 避免当 slab 边缘有 beam 或 wall 时，在梁/墙上点击误选 slab 而无法选中梁/墙
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const pt = pts[i];
+        if (pt.x < minX) minX = pt.x;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
+      }
+      const minDim = Math.min(maxX - minX, maxY - minY);
+      const edgeInset = Math.min(Math.max(tolerance * 1.2, 4), minDim * 0.35);
+
+      for (let i = 0; i < pts.length; i++) {
+        if (distanceToSegment(p, pts[i], pts[(i + 1) % pts.length]) <= edgeInset) {
+          return false;
+        }
+      }
+      return true;
     }
     case 'portalFrame': {
       const g=element.geometry;

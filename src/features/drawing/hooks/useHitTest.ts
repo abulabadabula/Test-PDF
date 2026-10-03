@@ -21,13 +21,14 @@ const NODE_PICK_TOLERANCE_FACTOR = 0.8;
  * Selection priority:
  *
  * 1. A nearby Node wins.
- * 2. Otherwise the top-most non-Node object wins.
+ * 2. Linear and discrete elements (Beam, Column, Wall, PortalFrame, annotations) win.
+ * 3. 2D Area elements (Slab) win.
  *
  * Exactly ONE shape is returned for one normal click.
  *
- * This separation is important because a slab owns node IDs as
- * topology, but the nodes are NOT automatically part of the slab's
- * selection state.
+ * This separation is important so that beams, walls, and columns
+ * located along edges or inside slabs are easily selectable, and
+ * nodes are not accidentally overridden by slab surfaces.
  */
 export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
   return useCallback((x: number, y: number): Shape | null => {
@@ -53,11 +54,13 @@ export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
 
     /*
      * -------------------------------------------------------------
-     * 2. ALL OTHER OBJECTS
+     * 2. LINEAR & DISCRETE OBJECTS (BEAM, COLUMN, WALL, ETC.)
      * -------------------------------------------------------------
      *
-     * Nodes are intentionally excluded because they have already
-     * been resolved in the first pass.
+     * Nodes have already been resolved in the first pass.
+     * Slabs are large 2D surface elements and are resolved in the
+     * third pass so that beams and walls on slab edges or within
+     * the slab take selection priority.
      *
      * Iterate backwards so later shapes behave like the top-most
      * object when zIndex is equal.
@@ -66,7 +69,7 @@ export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
       const shape = currentPageShapes[i];
 
       if ('geometry' in shape && 'style' in shape) {
-        if (shape.type === 'node') continue;
+        if (shape.type === 'node' || shape.type === 'slab') continue;
         if (hitTestStructuralElement(shape as any, { x, y }, tolerance)) {
           return shape;
         }
@@ -138,6 +141,24 @@ export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
       }
 
       if (hit) return shape;
+    }
+
+    /*
+     * -------------------------------------------------------------
+     * 3. SLAB (SURFACE) OBJECTS
+     * -------------------------------------------------------------
+     *
+     * Slabs are 2D area elements. They have lower selection priority
+     * than nodes, beams, walls, and columns so that elements located
+     * along edges or within the slab boundary can be selected reliably.
+     */
+    for (let i = currentPageShapes.length - 1; i >= 0; i -= 1) {
+      const shape = currentPageShapes[i];
+      if ('geometry' in shape && 'style' in shape && shape.type === 'slab') {
+        if (hitTestStructuralElement(shape as any, { x, y }, tolerance)) {
+          return shape;
+        }
+      }
     }
 
     return null;
