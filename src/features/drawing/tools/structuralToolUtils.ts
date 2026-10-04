@@ -1,16 +1,14 @@
 // src/features/drawing/tools/structuralToolUtils.ts
 
 import type { ToolContext } from './BaseTool';
-import type { StructuralElementType } from '../elements/elementTypes';
+import type { StructuralElementType, NodeElement } from '../elements/elementTypes';
 import {
   DEFAULT_ELEMENT_STYLE,
   getStructuralDefaults,
   prefixForType,
 } from '../elements/elementDefaults';
 import { nanoid } from '@reduxjs/toolkit';
-import type { NodeElement } from '../elements/elementTypes';
 
-// 创建基础结构元素，如节点、梁、柱等，带有默认样式和属性
 export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry: any) {
   const state = ctx.getState();
   const drawing = state.drawing;
@@ -36,11 +34,10 @@ export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry
   } as any;
 }
 
-// 获取指定类型的结构元素默认值，考虑当前绘图比例
 export function structuralDefaults(
   type: StructuralElementType,
   scaleDenominator: number,
-  scaleNumerator = 1
+  scaleNumerator = 1,
 ) {
   if (type === 'node') return undefined;
   return getStructuralDefaults(scaleDenominator, scaleNumerator)[type];
@@ -50,11 +47,11 @@ export function ensureLabel(ctx: ToolContext, type: StructuralElementType) {
   const state = ctx.getState();
   const prefix = prefixForType(type);
   const used = state.drawing.shapes
-    .filter((s: any) => s.type === type)
+    .filter((s: any) => s.pageIndex === state.pdf.currentPage && s.type === type)
     .map((s: any) => s.label as string);
 
   let i = 1;
-  while (used.includes(`${prefix}-${String(i).padStart(3, '0')}`)) i++;
+  while (used.includes(`${prefix}-${String(i).padStart(3, '0')}`)) i += 1;
   return `${prefix}-${String(i).padStart(3, '0')}`;
 }
 
@@ -66,44 +63,68 @@ export interface NodeResult {
   id: string;
   isNew: boolean;
   shape?: any;
-  snappedPoint: { x: number; y: number }; // 新增：返回实际吸附后的坐标
+  snappedPoint: { x: number; y: number };
 }
 
+/**
+ * Resolve a structural node without applying a second grid snap.
+ *
+ * Grid/object snapping is already performed by the canvas snap engine. A
+ * second snap here could move an endpoint or intersection away from the
+ * deliberately selected object-snap point. This helper only reuses nearby
+ * page-local nodes or creates a new node at the supplied snapped point.
+ */
 export function getOrCreateNode(
   ctx: ToolContext,
   point: { x: number; y: number },
-  tolerance: number = 5 // 容差设为 5，提升吸附体验
+  tolerance = 5,
 ): NodeResult {
   const state = ctx.getState();
-  const nodes = state.drawing.shapes.filter((s: any) => s.type === 'node') as NodeElement[];
+  const pageIndex = state.pdf.currentPage;
+  const safePoint = {
+    x: Number.isFinite(point.x) ? point.x : 0,
+    y: Number.isFinite(point.y) ? point.y : 0,
+  };
 
-  // 1. 查找容差范围内的现有节点
-  const existingNode = nodes.find((n) => distance(n.geometry, point) <= tolerance);
+  const nodes = state.drawing.shapes.filter(
+    (shape: any): shape is NodeElement =>
+      shape.pageIndex === pageIndex && shape.type === 'node',
+  );
 
-  if (existingNode) {
+  let nearestNode: NodeElement | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const node of nodes) {
+    const nodePoint = { x: node.geometry.x, y: node.geometry.y };
+    const nodeDistance = distance(nodePoint, safePoint);
+
+    if (nodeDistance <= tolerance && nodeDistance < nearestDistance) {
+      nearestNode = node;
+      nearestDistance = nodeDistance;
+    }
+  }
+
+  if (nearestNode) {
     return {
-      id: existingNode.id,
+      id: nearestNode.id,
       isNew: false,
-      snappedPoint: { x: existingNode.geometry.x, y: existingNode.geometry.y },
+      snappedPoint: { x: nearestNode.geometry.x, y: nearestNode.geometry.y },
     };
   }
 
-  // 2. 若无，则准备一个新节点
   const newId = nanoid();
   const label = ensureLabel(ctx, 'node');
   const shape = {
-    ...makeBase(ctx, 'node', { x: point.x, y: point.y }),
+    ...makeBase(ctx, 'node', safePoint),
     id: newId,
     label,
-    properties: {
-      label,
-    },
+    properties: { label },
   } as any;
 
   return {
     id: newId,
     isNew: true,
     shape,
-    snappedPoint: { x: point.x, y: point.y },
+    snappedPoint: { x: safePoint.x, y: safePoint.y },
   };
 }
