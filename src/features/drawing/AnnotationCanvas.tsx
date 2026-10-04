@@ -11,24 +11,11 @@ import { useHitTest } from './hooks/useHitTest';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { StructuralPropertyDialog } from './StructuralPropertyDialog';
 import { setCurrentDrawingScale } from '@/core/coordinate/engineeringScale';
+import { drawPageGrid } from './snapping/gridUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-/*
- * AnnotationCanvas is a React component that renders an interactive canvas for
- * drawing annotations on a PDF document. It manages the state of shapes, layers,
- * and user interactions such as selecting, moving, and editing shapes.
- * AnnotationCanvas是一个React组件，用于在PDF文档上渲染交互式画布以进行注释。它管理形状、图层和用户交互的状态，例如选择、移动和编辑形状。
- *
- * The component uses Redux for state management and provides a responsive canvas
- * that adapts to the size of its parent container. It also includes dialogs for
- * adding text annotations and editing properties of structural elements.
- * The component uses Redux for state management and provides a responsive canvas
- * that adapts to the size of its parent container. It also includes dialogs for
- * adding text annotations and editing properties of structural elements.
- * 这个组件使用Redux进行状态管理，并提供一个响应式画布，可以适应其父容器的大小。它还包括用于添加文本注释和编辑结构元素属性的对话框。
- */
 export function AnnotationCanvas() {
   const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,46 +47,26 @@ export function AnnotationCanvas() {
   const [textInput, setTextInput] = useState('');
   const [canvasSizeVersion, setCanvasSizeVersion] = useState(0);
 
-  // 在组件内部添加状态读取
   const showElementLabels = useAppSelector((state) => state.ui.showElementLabels);
   const showElementSections = useAppSelector((state) => state.ui.showElementSections);
+  const showGrid = useAppSelector((state) => state.ui.showGrid);
+  const gridSize = useAppSelector((state) => state.ui.gridSize);
 
-  /*
-   * Make sure the current page has a
-   * coordinate system.
-   */
   useEffect(() => {
-    dispatch(
-      ensurePage({
-        pageIndex: currentPage,
-      })
-    );
+    dispatch(ensurePage({ pageIndex: currentPage }));
   }, [dispatch, currentPage]);
 
-  /*
-   * Keep the legacy engineeringScale
-   * helper synchronized with the CURRENT PAGE.
-   *
-   * ShapeRenderer currently uses pageUnitsToMm()
-   * for dimension labels.
-   */
   useEffect(() => {
     setCurrentDrawingScale(scaleNumerator, scaleDenominator);
   }, [scaleNumerator, scaleDenominator]);
 
-  /*
-   * Resize observer.
-   */
   useEffect(() => {
     const canvas = canvasRef.current;
     const parent = canvas?.parentElement;
 
-    if (!parent || typeof ResizeObserver === 'undefined') {
-      return;
-    }
+    if (!parent || typeof ResizeObserver === 'undefined') return;
 
     let raf = 0;
-
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setCanvasSizeVersion((v) => v + 1));
@@ -129,15 +96,6 @@ export function AnnotationCanvas() {
     [dispatch]
   );
 
-  /*
-   * Canvas rendering.
-   *
-   * IMPORTANT:
-   *
-   * Only PDF display zoom is used here.
-   *
-   * Drawing scale is NOT applied.
-   */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -157,97 +115,41 @@ export function AnnotationCanvas() {
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // 应用全局缩放 (包含设备像素比和用户缩放)
       ctx.setTransform(displayScale * dpr, 0, 0, displayScale * dpr, 0, 0);
 
-
-      // =========================================================
-      // 👇 新增：自适应网格 (Grid) 绘制逻辑
-      // =========================================================
-      ctx.save();
-
-      // 1. 动态计算网格步长，目标是让屏幕上的网格间距保持在 40px ~ 80px 之间
-      const targetScreenStep = 50; 
-      let logicalStep = targetScreenStep / displayScale;
-      
-      // 2. 将步长规整为美观的数字 (如 10, 20, 50, 100, 200...)
-      const magnitude = Math.pow(10, Math.floor(Math.log10(logicalStep)));
-      const residual = logicalStep / magnitude;
-      let niceStep = magnitude;
-      if (residual > 5) niceStep = magnitude * 10;
-      else if (residual > 2) niceStep = magnitude * 5;
-      else if (residual > 1) niceStep = magnitude * 2;
-
-      // 3. 设置网格线样式 (保持屏幕上始终为 1px 细线)
-      ctx.strokeStyle = '#e5e7eb'; // Tailwind gray-200 (浅灰色)
-      ctx.lineWidth = 1 / (displayScale * dpr); 
-      ctx.beginPath();
-
-      // 4. 绘制网格线 (覆盖当前可视区域，并稍微向外扩展一个步长以防平移时出现空白)
-      const gridEndX = width + niceStep;
-      const gridEndY = height + niceStep;
-
-      for (let x = 0; x <= gridEndX; x += niceStep) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, gridEndY);
+      // Grid geometry is kept in page coordinates. Zoom only changes the
+      // display transform, so grid spacing and snap spacing stay identical.
+      if (showGrid) {
+        drawPageGrid(ctx, {
+          pageWidth: width / Math.max(displayScale, 0.0001),
+          pageHeight: height / Math.max(displayScale, 0.0001),
+          gridSize,
+          origin: pageCoordinateSystem.origin,
+          displayScale,
+          devicePixelRatio: dpr,
+        });
       }
-      for (let y = 0; y <= gridEndY; y += niceStep) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(gridEndX, y);
-      }
-      ctx.stroke();
-
-      // 5. 绘制 X=0 和 Y=0 的主轴线 (稍微加深，作为绝对参考系)
-      ctx.strokeStyle = '#9ca3af'; // Tailwind gray-400 (中灰色)
-      ctx.lineWidth = 2 / (displayScale * dpr);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(gridEndX, 0); // X 轴
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, gridEndY); // Y 轴
-      ctx.stroke();
-
-      ctx.restore();
-      // =========================================================
-      // 👆 网格绘制结束
-      // =========================================================
-
-
 
       const visible = new Set(
         layers.filter((layer) => layer.visible).map((layer) => layer.id)
       );
 
-      // 在 useEffect 的渲染循环中，使用两阶段渲染以确保节点 (point) 总是在最上层可见：
       const visibleShapes = shapes.filter((s) => visible.has(s.layerId));
-
       const nonPointShapes = visibleShapes.filter((s) => s.type !== 'point');
       const pointShapes = visibleShapes.filter((s) => s.type === 'point');
 
       nonPointShapes.forEach((shape) => {
-        renderShape(
-          ctx,
-          shape,
-          selectedShapes.some((selected) => selected.id === shape.id),
-          {
-            showLabels: showElementLabels,
-            showSections: showElementSections,
-          }
-        );
+        renderShape(ctx, shape, selectedShapes.some((selected) => selected.id === shape.id), {
+          showLabels: showElementLabels,
+          showSections: showElementSections,
+        });
       });
 
-      // 把点绘制在最后，保证它们不会被梁等线条覆盖
       pointShapes.forEach((shape) => {
-        renderShape(
-          ctx,
-          shape,
-          selectedShapes.some((selected) => selected.id === shape.id),
-          {
-            showLabels: showElementLabels,
-            showSections: showElementSections,
-          }
-        );
+        renderShape(ctx, shape, selectedShapes.some((selected) => selected.id === shape.id), {
+          showLabels: showElementLabels,
+          showSections: showElementSections,
+        });
       });
 
       if (tempShape) {
@@ -263,18 +165,8 @@ export function AnnotationCanvas() {
         ctx.fillStyle = 'rgba(37,99,235,.08)';
         ctx.lineWidth = 1 / displayScale;
         ctx.setLineDash([5 / displayScale, 4 / displayScale]);
-        ctx.fillRect(
-          selectionRect.x,
-          selectionRect.y,
-          selectionRect.width,
-          selectionRect.height
-        );
-        ctx.strokeRect(
-          selectionRect.x,
-          selectionRect.y,
-          selectionRect.width,
-          selectionRect.height
-        );
+        ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+        ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
         ctx.restore();
       }
 
@@ -311,7 +203,7 @@ export function AnnotationCanvas() {
         ctx.stroke();
 
         ctx.fillStyle = originMode ? '#ef4444' : '#16a34a';
-        ctx.font = `${10 / displayScale}px sans-serif`;
+        ctx.font = \`\${10 / displayScale}px sans-serif\`;
         ctx.fillText('0,0', ox + 10 / displayScale, oy - 10 / displayScale);
         ctx.restore();
       }
@@ -329,6 +221,10 @@ export function AnnotationCanvas() {
     canvasSizeVersion,
     pageCoordinateSystem,
     originMode,
+    showElementLabels,
+    showElementSections,
+    showGrid,
+    gridSize,
   ]);
 
   const submitText = useCallback(() => {
@@ -403,9 +299,7 @@ export function AnnotationCanvas() {
         scaleNumerator={scaleNumerator}
         scaleDenominator={scaleDenominator}
         onOpenChange={(open) => {
-          if (!open) {
-            setPropertyElement(null);
-          }
+          if (!open) setPropertyElement(null);
         }}
       />
     </>
