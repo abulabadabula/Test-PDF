@@ -203,7 +203,7 @@ export function AnnotationCanvas() {
         ctx.stroke();
 
         ctx.fillStyle = originMode ? '#ef4444' : '#16a34a';
-        ctx.font = \`\${10 / displayScale}px sans-serif\`;
+        ctx.font = `${10 / displayScale}px sans-serif`;
         ctx.fillText('0,0', ox + 10 / displayScale, oy - 10 / displayScale);
         ctx.restore();
       }
