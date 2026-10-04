@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Material } from '@/app/store/slices/propertiesSlice';
 
 interface MaterialManagerDialogProps {
   open: boolean;
@@ -77,7 +78,7 @@ export function MaterialManagerDialog({ open, onOpenChange }: MaterialManagerDia
               {materials.length === 0 && (
                 <div className="p-2 text-xs text-muted-foreground text-center">No materials defined yet.</div>
               )}
-              {materials.map(m => (
+              {materials.map((m: Material) => (
                 <div key={m.id} className="p-2 border-b text-xs flex justify-between items-center last:border-0">
                   <span>{m.name} <span className="text-muted-foreground">({m.type})</span></span>
                   <span className="text-muted-foreground">E={m.youngsModulus}</span>

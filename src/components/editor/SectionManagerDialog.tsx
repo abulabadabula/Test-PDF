@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Material, Section } from '@/app/store/slices/propertiesSlice';
 
 interface SectionManagerDialogProps {
   open: boolean;
@@ -64,7 +65,7 @@ export function SectionManagerDialog({ open, onOpenChange }: SectionManagerDialo
               <Select value={secMatId} onValueChange={setSecMatId}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {materials.map(m => (
+                  {materials.map((m: Material) => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -87,8 +88,8 @@ export function SectionManagerDialog({ open, onOpenChange }: SectionManagerDialo
               {sections.length === 0 && (
                 <div className="p-2 text-xs text-muted-foreground text-center">No sections defined yet.</div>
               )}
-              {sections.map(s => {
-                const mat = materials.find(m => m.id === s.materialId);
+              {sections.map((s: Section) => {
+                const mat = materials.find((m: Material) => m.id === s.materialId);
                 return (
                   <div key={s.id} className="p-2 border-b text-xs flex justify-between items-center last:border-0">
                     <span>{s.name} <span className="text-muted-foreground">({s.type})</span></span>
