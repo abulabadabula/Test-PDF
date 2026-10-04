@@ -20,10 +20,9 @@ export interface UiState {
     nearest: boolean;
     grid: boolean;
   };
-  // --- 新增：显示设置 ---
-  showElementLabels: boolean; // 控制显示或关闭节点和柱梁墙等构件的编号
-  showElementSections: boolean; // 控制显示或关闭构件的截面信息
-  dimPdfBackground: boolean; // 控制显示或淡显背景PDF的颜色
+  showElementLabels: boolean;
+  showElementSections: boolean;
+  dimPdfBackground: boolean;
 }
 
 const initialState: UiState = {
@@ -45,7 +44,6 @@ const initialState: UiState = {
     nearest: true,
     grid: false,
   },
-  // --- 新增：显示设置初始值 ---
   showElementLabels: true,
   showElementSections: true,
   dimPdfBackground: false,
@@ -55,49 +53,28 @@ export const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    toggleLeftPanel: (state) => {
-      state.leftPanelOpen = !state.leftPanelOpen;
-    },
-    toggleRightPanel: (state) => {
-      state.rightPanelOpen = !state.rightPanelOpen;
-    },
-    toggleToolbar: (state) => {
-      state.toolbarCollapsed = !state.toolbarCollapsed;
-    },
-    toggleTreeView: (state) => {
-      state.treeViewExpanded = !state.treeViewExpanded;
-    },
-    toggleAiPanel: (state) => {
-      state.aiPanelOpen = !state.aiPanelOpen;
-    },
-    setTheme: (state, action: PayloadAction<'light' | 'dark' | 'system'>) => {
-      state.theme = action.payload;
-    },
-    toggleGrid: (state) => {
-      state.showGrid = !state.showGrid;
-    },
+    toggleLeftPanel: (state) => { state.leftPanelOpen = !state.leftPanelOpen; },
+    toggleRightPanel: (state) => { state.rightPanelOpen = !state.rightPanelOpen; },
+    toggleToolbar: (state) => { state.toolbarCollapsed = !state.toolbarCollapsed; },
+    toggleTreeView: (state) => { state.treeViewExpanded = !state.treeViewExpanded; },
+    toggleAiPanel: (state) => { state.aiPanelOpen = !state.aiPanelOpen; },
+    setTheme: (state, action: PayloadAction<'light' | 'dark' | 'system'>) => { state.theme = action.payload; },
+    toggleGrid: (state) => { state.showGrid = !state.showGrid; },
     toggleSnapToGrid: (state) => {
       state.snapToGrid = !state.snapToGrid;
+      state.snapTypes.grid = state.snapToGrid;
     },
     setGridSize: (state, action: PayloadAction<number>) => {
-      state.gridSize = action.payload;
+      if (Number.isFinite(action.payload) && action.payload > 0) state.gridSize = action.payload;
     },
-    toggleSnap: (state) => {
-      state.snapEnabled = !state.snapEnabled;
-    },
+    toggleSnap: (state) => { state.snapEnabled = !state.snapEnabled; },
     toggleSnapType: (state, action: PayloadAction<keyof UiState['snapTypes']>) => {
       state.snapTypes[action.payload] = !state.snapTypes[action.payload];
+      if (action.payload === 'grid') state.snapToGrid = state.snapTypes.grid;
     },
-    // --- 新增：显示设置 Actions ---
-    toggleShowElementLabels: (state) => {
-      state.showElementLabels = !state.showElementLabels;
-    },
-    toggleShowElementSections: (state) => {
-      state.showElementSections = !state.showElementSections;
-    },
-    toggleDimPdfBackground: (state) => {
-      state.dimPdfBackground = !state.dimPdfBackground;
-    },
+    toggleShowElementLabels: (state) => { state.showElementLabels = !state.showElementLabels; },
+    toggleShowElementSections: (state) => { state.showElementSections = !state.showElementSections; },
+    toggleDimPdfBackground: (state) => { state.dimPdfBackground = !state.dimPdfBackground; },
   },
 });
 
