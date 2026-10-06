@@ -109,6 +109,8 @@ export interface BeamElement extends StructuralBase {
     label: string;
     section: string;
     material: string;
+    sectionId?: string;
+    materialId?: string;
     startNodeId?: string;
     endNodeId?: string;
   };
@@ -120,6 +122,7 @@ export interface WallElement extends StructuralBase {
     label: string;
     wallType: string;
     material: string;
+    materialId?: string;
     startNodeId?: string;
     endNodeId?: string;
   };
@@ -131,6 +134,7 @@ export interface SlabElement extends StructuralBase {
     label: string;
     thickness: number;
     material: string;
+    materialId?: string;
     level: string;
     nodeIds?: string[];
   };
