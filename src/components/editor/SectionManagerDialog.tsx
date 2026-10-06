@@ -60,6 +60,7 @@ export function SectionManagerDialog({
     setSecType(initialType);
     setSecName('');
     setError('');
+    setSecMatId(materials[0]?.id || '');
     setDimensions(getDefaultDimensionDraft(initialType));
   }, [open, initialType]);
 
