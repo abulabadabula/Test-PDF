@@ -105,7 +105,6 @@ private start: { x: number; y: number } | null = null;
         sectionId: d.sectionId,
         material: d.material,
         materialId: d.materialId,
-        material: d.material,
         startNodeId: nodeId,
         endNodeId: nodeId,
       },
