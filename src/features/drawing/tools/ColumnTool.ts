@@ -32,7 +32,6 @@ export class ColumnTool extends BaseTool {
         sectionId: d.sectionId,
         material: d.material,
         materialId: d.materialId,
-        material: d.material,
         nodeId: nodeResult.id, // 记录节点 ID
       },
     } as any);
