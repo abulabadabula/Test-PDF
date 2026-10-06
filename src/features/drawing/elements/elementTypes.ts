@@ -97,6 +97,8 @@ export interface ColumnElement extends StructuralBase {
     label: string;
     section: string;
     material: string;
+    sectionId?: string;
+    materialId?: string;
     nodeId?: string;
   };
 }
