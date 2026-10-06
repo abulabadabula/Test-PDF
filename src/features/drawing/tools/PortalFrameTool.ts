@@ -97,7 +97,9 @@ export class PortalFrameTool extends BaseTool {
       properties: {
         label,
         section: d.section,
+        sectionId: d.sectionId,
         material: d.material,
+        materialId: d.materialId,
         startNodeId: nodeId,
         endNodeId: nodeId,
       },
