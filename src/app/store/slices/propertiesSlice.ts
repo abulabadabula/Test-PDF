@@ -115,6 +115,10 @@ const initialSections: Section[] = [
     legB: 100,
     thickness: 10,
   }),
+  makeDefaultSection('sec-10', '90x450 Steel', 'Rectangular', 'mat-2', {
+    width: 90,
+    height: 450,
+  }),
 ];
 
 const initialState: PropertiesState = {
