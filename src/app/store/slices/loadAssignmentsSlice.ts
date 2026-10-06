@@ -49,6 +49,24 @@ export const loadAssignmentsSlice = createSlice({
       state.assignments = state.assignments.filter((item) => item.targetId !== action.payload);
     },
   },
+  extraReducers: (builder) => {
+    builder.addMatcher(
+      (action): action is PayloadAction<string> => action.type === 'loads/deleteLoadCase',
+      (state, action) => {
+        state.assignments = state.assignments.filter(
+          (assignment) => assignment.loadCaseId !== action.payload,
+        );
+      },
+    );
+    builder.addMatcher(
+      (action): action is PayloadAction<string> => action.type === 'drawing/deleteShape',
+      (state, action) => {
+        state.assignments = state.assignments.filter(
+          (assignment) => assignment.targetId !== action.payload,
+        );
+      },
+    );
+  },
 });
 
 export const { addLoadAssignment, deleteLoadAssignment, deleteAssignmentsForTarget } =
