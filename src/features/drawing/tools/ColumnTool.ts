@@ -28,7 +28,10 @@ export class ColumnTool extends BaseTool {
       label,
       properties: {
         label,
-        section: `${d.realWidth}×${d.realDepth}`,
+        section: d.section,
+        sectionId: d.sectionId,
+        material: d.material,
+        materialId: d.materialId,
         material: d.material,
         nodeId: nodeResult.id, // 记录节点 ID
       },
