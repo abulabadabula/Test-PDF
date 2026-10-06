@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import {
-  FileText, Undo2, Redo2, Save, Download, Wrench,
-  PanelLeft, PanelLeftClose,
-  PanelRight, PanelRightClose,
+  FileText,
+  Undo2,
+  Redo2,
+  Save,
+  Download,
+  Wrench,
+  PanelLeft,
+  PanelLeftClose,
+  PanelRight,
+  PanelRightClose,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DisplaySettingsDialog } from './DisplaySettingsDialog';
 import { MaterialManagerDialog } from './MaterialManagerDialog';
 import { SectionManagerDialog } from './SectionManagerDialog';
+import { LoadCaseDialog } from './LoadCaseDialog';
+import { LoadCombinationDialog } from './LoadCombinationDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +57,9 @@ export function AppHeader() {
   const [isSectionMenuOpen, setIsSectionMenuOpen] = useState(false);
   const [isSectionManagerOpen, setIsSectionManagerOpen] = useState(false);
   const [sectionInitialType, setSectionInitialType] = useState<SectionType>('Rectangular');
+  const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
+  const [isLoadCaseDialogOpen, setIsLoadCaseDialogOpen] = useState(false);
+  const [isLoadCombinationDialogOpen, setIsLoadCombinationDialogOpen] = useState(false);
 
   const openMaterialManager = (type: Material['type']) => {
     setMaterialInitialType(type);
@@ -120,6 +132,35 @@ export function AppHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <DropdownMenu open={isLoadMenuOpen} onOpenChange={setIsLoadMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="px-3 py-1.5 rounded hover:bg-editor-hover hover:text-foreground transition-colors"
+                  onPointerEnter={() => setIsLoadMenuOpen(true)}
+                >
+                  Load
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56" onPointerLeave={() => setIsLoadMenuOpen(false)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setIsLoadCaseDialogOpen(true);
+                    setIsLoadMenuOpen(false);
+                  }}
+                >
+                  Load Case Definitions
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setIsLoadCombinationDialogOpen(true);
+                    setIsLoadMenuOpen(false);
+                  }}
+                >
+                  Load Combination Definitions
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
 
@@ -181,6 +222,14 @@ export function AppHeader() {
         open={isSectionManagerOpen}
         onOpenChange={setIsSectionManagerOpen}
         initialType={sectionInitialType}
+      />
+      <LoadCaseDialog
+        open={isLoadCaseDialogOpen}
+        onOpenChange={setIsLoadCaseDialogOpen}
+      />
+      <LoadCombinationDialog
+        open={isLoadCombinationDialogOpen}
+        onOpenChange={setIsLoadCombinationDialogOpen}
       />
     </>
   );
