@@ -22,13 +22,6 @@ interface Props {
 }
 
 const directions: LoadDirection[] = ['Global X', 'Global Y', 'Global Z', 'Local 1', 'Local 2', 'Local 3'];
-const loadTypes: LoadAssignmentType[] = [
-  'Joint Load',
-  'Frame Point Load',
-  'Frame Distributed Load',
-  'Area Load',
-];
-
 function supportedTypes(type: StructuralElement['type']) {
   if (type === 'node') return ['Joint Load'] as LoadAssignmentType[];
   if (type === 'slab') return ['Area Load'] as LoadAssignmentType[];
