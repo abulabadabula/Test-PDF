@@ -10,6 +10,7 @@ import { aiSlice } from './slices/aiSlice';
 import { pageCoordinateSlice } from './slices/pageCoordinateSlice';
 import { propertiesSlice } from './slices/propertiesSlice';
 import { loadsSlice } from './slices/loadSlice';
+import loadAssignmentsReducer from './slices/loadAssignmentsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -21,6 +22,7 @@ export const store = configureStore({
     ai: aiSlice.reducer,
     properties: propertiesSlice.reducer,
     loads: loadsSlice.reducer,
+    loadAssignments: loadAssignmentsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
