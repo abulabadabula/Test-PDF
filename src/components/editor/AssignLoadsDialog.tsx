@@ -1,0 +1,298 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
+import {
+  addLoadAssignment,
+  deleteLoadAssignment,
+  type LoadAssignment,
+  type LoadAssignmentType,
+  type LoadDirection,
+} from '@/app/store/slices/loadAssignmentsSlice';
+import type { StructuralElement } from '@/features/drawing/elements/elementTypes';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  element: StructuralElement | null;
+}
+
+const directions: LoadDirection[] = ['Global X', 'Global Y', 'Global Z', 'Local 1', 'Local 2', 'Local 3'];
+const loadTypes: LoadAssignmentType[] = [
+  'Joint Load',
+  'Frame Point Load',
+  'Frame Distributed Load',
+  'Area Load',
+];
+
+function supportedTypes(type: StructuralElement['type']) {
+  if (type === 'node') return ['Joint Load'] as LoadAssignmentType[];
+  if (type === 'slab') return ['Area Load'] as LoadAssignmentType[];
+  return ['Frame Point Load', 'Frame Distributed Load'] as LoadAssignmentType[];
+}
+
+function summary(a: LoadAssignment, caseName: string) {
+  if (a.loadType === 'Joint Load') {
+    return caseName + ' · Fx ' + (a.fx ?? 0) + ' kN · Fy ' + (a.fy ?? 0) +
+      ' kN · Fz ' + (a.fz ?? 0) + ' kN · Mz ' + (a.mz ?? 0) + ' kN·m';
+  }
+  if (a.loadType === 'Area Load') {
+    return caseName + ' · ' + (a.pressure ?? 0) + ' kPa · ' + (a.direction ?? 'Global Z');
+  }
+  if (a.loadType === 'Frame Point Load') {
+    return caseName + ' · ' + (a.magnitudeStart ?? 0) + ' kN · ' +
+      (a.direction ?? 'Global Z') + ' · x=' + (a.distanceFromStart ?? 0) + ' m';
+  }
+  return caseName + ' · ' + (a.magnitudeStart ?? 0) + ' → ' +
+    (a.magnitudeEnd ?? a.magnitudeStart ?? 0) + ' kN/m · ' + (a.direction ?? 'Global Z');
+}
+
+export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
+  const dispatch = useAppDispatch();
+  const loadCases = useAppSelector((s) => s.loads.loadCases);
+  const assignments = useAppSelector((s) => s.loadAssignments.assignments);
+
+  const [loadCaseId, setLoadCaseId] = useState('');
+  const [loadType, setLoadType] = useState<LoadAssignmentType>('Joint Load');
+  const [direction, setDirection] = useState<LoadDirection>('Global Z');
+
+  const [fx, setFx] = useState('0');
+  const [fy, setFy] = useState('0');
+  const [fz, setFz] = useState('0');
+  const [mx, setMx] = useState('0');
+  const [my, setMy] = useState('0');
+  const [mz, setMz] = useState('0');
+
+  const [distanceFromStart, setDistanceFromStart] = useState('0');
+  const [magnitudeStart, setMagnitudeStart] = useState('0');
+  const [magnitudeEnd, setMagnitudeEnd] = useState('0');
+  const [pressure, setPressure] = useState('0');
+  const [description, setDescription] = useState('');
+
+  const supported = useMemo(
+    () => (element ? supportedTypes(element.type) : []),
+    [element],
+  );
+
+  const targetAssignments = useMemo(
+    () => element ? assignments.filter((a) => a.targetId === element.id) : [],
+    [assignments, element],
+  );
+
+  useEffect(() => {
+    if (!open || !element) return;
+    setLoadCaseId(loadCases[0]?.id ?? '');
+    setLoadType(supported[0] ?? 'Joint Load');
+    setDirection('Global Z');
+    setFx('0'); setFy('0'); setFz('0');
+    setMx('0'); setMy('0'); setMz('0');
+    setDistanceFromStart('0');
+    setMagnitudeStart('0'); setMagnitudeEnd('0');
+    setPressure('0'); setDescription('');
+  }, [open, element, loadCases, supported]);
+
+  const num = (value: string) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  const add = () => {
+    if (!element || !loadCaseId) return;
+    const base = {
+      targetId: element.id,
+      targetType: element.type,
+      loadCaseId,
+      loadType,
+      description: description.trim(),
+    };
+
+    if (loadType === 'Joint Load') {
+      dispatch(addLoadAssignment({
+        ...base, fx: num(fx), fy: num(fy), fz: num(fz),
+        mx: num(mx), my: num(my), mz: num(mz),
+      }));
+    } else if (loadType === 'Area Load') {
+      dispatch(addLoadAssignment({ ...base, direction, pressure: num(pressure) }));
+    } else if (loadType === 'Frame Point Load') {
+      dispatch(addLoadAssignment({
+        ...base, direction,
+        distanceFromStart: num(distanceFromStart),
+        magnitudeStart: num(magnitudeStart),
+      }));
+    } else {
+      dispatch(addLoadAssignment({
+        ...base, direction,
+        magnitudeStart: num(magnitudeStart),
+        magnitudeEnd: num(magnitudeEnd),
+      }));
+    }
+    setDescription('');
+  };
+
+  const caseName = (id: string) =>
+    loadCases.find((item) => item.id === id)?.name ?? 'Unknown';
+
+  if (!element) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Assign Loads — {element.label}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border bg-muted/20 p-3 text-xs">
+            Target: <span className="font-medium">{element.label} ({element.type})</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Load Case</Label>
+              <Select value={loadCaseId} onValueChange={setLoadCaseId}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Select load case" /></SelectTrigger>
+                <SelectContent>
+                  {loadCases.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Load Type</Label>
+              <Select value={loadType} onValueChange={(v) => setLoadType(v as LoadAssignmentType)}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {supported.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {loadType === 'Joint Load' && (
+              <>
+                <div className="col-span-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Joint Forces [kN]
+                </div>
+                {[
+                  ['Fx', fx, setFx], ['Fy', fy, setFy], ['Fz', fz, setFz],
+                ].map(([label, value, setter]) => (
+                  <div key={label as string} className="space-y-1.5">
+                    <Label className="text-xs">{label as string}</Label>
+                    <Input className="h-8" type="number" step="0.01" value={value as string}
+                      onChange={(e) => (setter as (v: string) => void)(e.target.value)} />
+                  </div>
+                ))}
+                <div className="col-span-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Joint Moments [kN·m]
+                </div>
+                {[
+                  ['Mx', mx, setMx], ['My', my, setMy], ['Mz', mz, setMz],
+                ].map(([label, value, setter]) => (
+                  <div key={label as string} className="space-y-1.5">
+                    <Label className="text-xs">{label as string}</Label>
+                    <Input className="h-8" type="number" step="0.01" value={value as string}
+                      onChange={(e) => (setter as (v: string) => void)(e.target.value)} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {(loadType === 'Frame Point Load' || loadType === 'Frame Distributed Load') && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Direction</Label>
+                  <Select value={direction} onValueChange={(v) => setDirection(v as LoadDirection)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>{directions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+
+                {loadType === 'Frame Point Load' ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Distance from Start [m]</Label>
+                      <Input className="h-8" type="number" min="0" step="0.01"
+                        value={distanceFromStart} onChange={(e) => setDistanceFromStart(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Magnitude [kN]</Label>
+                      <Input className="h-8" type="number" step="0.01"
+                        value={magnitudeStart} onChange={(e) => setMagnitudeStart(e.target.value)} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Start Magnitude [kN/m]</Label>
+                      <Input className="h-8" type="number" step="0.01"
+                        value={magnitudeStart} onChange={(e) => setMagnitudeStart(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">End Magnitude [kN/m]</Label>
+                      <Input className="h-8" type="number" step="0.01"
+                        value={magnitudeEnd} onChange={(e) => setMagnitudeEnd(e.target.value)} />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {loadType === 'Area Load' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Direction</Label>
+                  <Select value={direction} onValueChange={(v) => setDirection(v as LoadDirection)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>{directions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Pressure [kPa]</Label>
+                  <Input className="h-8" type="number" step="0.01"
+                    value={pressure} onChange={(e) => setPressure(e.target.value)} />
+                </div>
+              </>
+            )}
+
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs">Description</Label>
+              <Input className="h-8" value={description}
+                onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+            </div>
+          </div>
+
+          <Button className="w-full h-9" onClick={add}
+            disabled={!loadCases.length || !loadCaseId}>
+            Assign Load
+          </Button>
+
+          <div className="rounded-md border">
+            <div className="p-2 bg-muted font-medium text-xs">Assigned Loads</div>
+            <div className="max-h-56 overflow-y-auto">
+              {!targetAssignments.length && (
+                <div className="p-3 text-xs text-muted-foreground text-center">No loads assigned.</div>
+              )}
+              {targetAssignments.map((a) => (
+                <div key={a.id} className="flex items-start justify-between gap-2 border-b p-2 last:border-0 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-medium">{a.loadType}</div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">{summary(a, caseName(a.loadCaseId))}</div>
+                    {a.description && <div className="mt-1 text-[10px] text-muted-foreground">{a.description}</div>}
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => dispatch(deleteLoadAssignment(a.id))}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
