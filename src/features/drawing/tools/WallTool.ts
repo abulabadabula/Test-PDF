@@ -92,6 +92,7 @@ export class WallTool extends BaseTool {
         label,
         wallType: d.wallType,
         material: d.material,
+        materialId: d.materialId,
         startNodeId: nodeId,
         endNodeId: nodeId,
       },
