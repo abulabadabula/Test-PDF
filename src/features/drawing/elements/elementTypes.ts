@@ -35,7 +35,7 @@ export interface StructuralBase {
   type: StructuralElementType;
   pageIndex: number;
   layerId: string;
-  properties: Record<string, string | number>;
+  properties: Record<string, string | number | string[]>;
   style: ElementStyle;
   label: string;
   createdAt: string;
@@ -130,6 +130,7 @@ export interface SlabElement extends StructuralBase {
     thickness: number;
     material: string;
     level: string;
+    nodeIds?: string[];
   };
 }
 export interface PortalFrameElement extends StructuralBase {

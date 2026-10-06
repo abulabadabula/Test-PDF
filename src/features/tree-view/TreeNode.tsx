@@ -12,9 +12,11 @@ const icons: any = { column: Columns3, beam: Minus, wall: BrickWall, slab: Layer
 export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: TreeNodeData; depth: number; focusedId: string | null; onExpandToggle: (id: string) => void }) {
   const dispatch = useAppDispatch();
   const layers = useAppSelector((s) => s.layer.layers);
+  const selectedShapeIds = useAppSelector((s) => s.drawing.selectedShapeIds);
   const [selected, setSelected] = useState<StructuralElement | null>(null);
 
   const isGroup = node.type === 'group';
+  const isSelected = !isGroup && selectedShapeIds.includes(node.id);
   const Icon = isGroup ? Folder : (icons[node.shapeType || ''] || Square);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -49,7 +51,7 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
     <div
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      className={`flex items-center gap-1.5 px-2 py-1 text-xs cursor-pointer rounded ${focusedId === node.id ? 'bg-muted' : ''}`}
+      className={`flex items-center gap-1.5 px-2 py-1 text-xs cursor-pointer rounded ${isSelected ? 'bg-accent text-accent-foreground' : focusedId === node.id ? 'bg-muted' : ''}`}
       style={{ paddingLeft: depth * 16 + 8 }}
     >
       {isGroup ? (node.isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />) : <span className="w-3" />}
