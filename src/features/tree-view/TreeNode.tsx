@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, Folder, Square, Columns3, Minus, BrickWall, 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { TreeNodeData } from './types';
 import { StructuralPropertyDialog } from '@/features/drawing/StructuralPropertyDialog';
+import { AssignLoadsDialog } from '@/components/editor/AssignLoadsDialog';
 import type { StructuralElement } from '@/features/drawing/elements/elementTypes';
 
 const icons: any = { column: Columns3, beam: Minus, wall: BrickWall, slab: Layers3, portalFrame: Square };
@@ -14,6 +15,7 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
   const layers = useAppSelector((s) => s.layer.layers);
   const selectedShapeIds = useAppSelector((s) => s.drawing.selectedShapeIds);
   const [selected, setSelected] = useState<StructuralElement | null>(null);
+  const [assigningLoads, setAssigningLoads] = useState<StructuralElement | null>(null);
 
   const isGroup = node.type === 'group';
   const isSelected = !isGroup && selectedShapeIds.includes(node.id);
@@ -78,6 +80,16 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
         <ContextMenuTrigger asChild>{nodeContent}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           <ContextMenuItem onClick={handleDoubleClick}>Edit Properties</ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              if (node.shapeData && 'geometry' in node.shapeData) {
+                dispatch(selectShape({ id: node.id }));
+                setAssigningLoads(node.shapeData as StructuralElement);
+              }
+            }}
+          >
+            Assign Loads
+          </ContextMenuItem>
           <ContextMenuItem onClick={handleCopy}>Copy</ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuSub>
@@ -91,6 +103,13 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
         </ContextMenuContent>
       </ContextMenu>
       {selected && <StructuralPropertyDialog element={selected} open onOpenChange={(open) => { if (!open) setSelected(null); }} />}
+      {assigningLoads && (
+        <AssignLoadsDialog
+          element={assigningLoads}
+          open
+          onOpenChange={(open) => { if (!open) setAssigningLoads(null); }}
+        />
+      )}
     </>
   );
 }
