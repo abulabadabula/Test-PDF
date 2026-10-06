@@ -17,6 +17,7 @@ import { MaterialManagerDialog } from './MaterialManagerDialog';
 import { SectionManagerDialog } from './SectionManagerDialog';
 import { LoadCaseDialog } from './LoadCaseDialog';
 import { LoadCombinationDialog } from './LoadCombinationDialog';
+import { AssignLoadsDialog } from './AssignLoadsDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { toggleLeftPanel, toggleRightPanel, toggleToolbar } from '@/app/store/slices/uiSlice';
 import type { SectionType } from '@/core/section/sectionGeometry';
 import type { Material } from '@/app/store/slices/propertiesSlice';
+import type { StructuralElement } from '@/features/drawing/elements/elementTypes';
 
 const SECTION_MENU_ITEMS: Array<{ value: SectionType; label: string }> = [
   { value: 'Rectangular', label: 'Rectangular' },
@@ -50,6 +52,11 @@ export function AppHeader() {
   const leftPanelOpen = useAppSelector((state) => state.ui.leftPanelOpen);
   const rightPanelOpen = useAppSelector((state) => state.ui.rightPanelOpen);
   const toolbarCollapsed = useAppSelector((state) => state.ui.toolbarCollapsed);
+  const selectedElement = useAppSelector((state) => {
+    const selectedId = state.drawing.selectedShapeIds[0];
+    const shape = state.drawing.shapes.find((item) => item.id === selectedId);
+    return shape && 'geometry' in shape ? shape as StructuralElement : null;
+  });
 
   const [isMaterialMenuOpen, setIsMaterialMenuOpen] = useState(false);
   const [isMaterialManagerOpen, setIsMaterialManagerOpen] = useState(false);
@@ -60,6 +67,7 @@ export function AppHeader() {
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
   const [isLoadCaseDialogOpen, setIsLoadCaseDialogOpen] = useState(false);
   const [isLoadCombinationDialogOpen, setIsLoadCombinationDialogOpen] = useState(false);
+  const [isAssignLoadsDialogOpen, setIsAssignLoadsDialogOpen] = useState(false);
 
   const openMaterialManager = (type: Material['type']) => {
     setMaterialInitialType(type);
@@ -71,6 +79,12 @@ export function AppHeader() {
     setSectionInitialType(type);
     setIsSectionManagerOpen(true);
     setIsSectionMenuOpen(false);
+  };
+
+  const openAssignLoads = () => {
+    if (!selectedElement) return;
+    setIsAssignLoadsDialogOpen(true);
+    setIsLoadMenuOpen(false);
   };
 
   return (
@@ -143,6 +157,12 @@ export function AppHeader() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56" onPointerLeave={() => setIsLoadMenuOpen(false)}>
+                <DropdownMenuItem
+                  disabled={!selectedElement}
+                  onClick={openAssignLoads}
+                >
+                  Assign Loads{selectedElement ? ' — ' + selectedElement.label : ''}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     setIsLoadCaseDialogOpen(true);
@@ -230,6 +250,11 @@ export function AppHeader() {
       <LoadCombinationDialog
         open={isLoadCombinationDialogOpen}
         onOpenChange={setIsLoadCombinationDialogOpen}
+      />
+      <AssignLoadsDialog
+        open={isAssignLoadsDialogOpen}
+        onOpenChange={setIsAssignLoadsDialogOpen}
+        element={selectedElement}
       />
     </>
   );
