@@ -1,13 +1,15 @@
 // src/features/drawing/StructuralPropertyDialog.tsx
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAppDispatch } from '@/app/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { updateShape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from './elements/elementTypes';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { pagePtToRealMm, realMmToPagePt } from '@/core/coordinate/engineeringScale';
+import { AssignLoadsDialog } from '@/components/editor/AssignLoadsDialog';
+import type { LoadAssignment } from '@/app/store/slices/loadAssignmentsSlice';
 
 interface Props {
   element: StructuralElement | null;
@@ -49,10 +51,17 @@ export function StructuralPropertyDialog({
 }: Props) {
   const dispatch = useAppDispatch();
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [assignLoadsOpen, setAssignLoadsOpen] = useState(false);
+  const assignments = useAppSelector((state) =>
+    element ? state.loadAssignments.assignments.filter((item) => item.targetId === element.id) : []
+  );
+  const loadCases = useAppSelector((state) => state.loads.loadCases);
 
   const fields = useMemo(() => {
     if (!element) return [] as string[];
     switch (element.type) {
+      case 'node':
+        return ['label'];
       case 'column':
         return ['label', 'width', 'depth', 'rotation', 'section', 'material'];
       case 'beam':
@@ -105,6 +114,38 @@ export function StructuralPropertyDialog({
   }, [element, scaleDenominator, scaleNumerator]);
 
   if (!element) return null;
+
+  const loadCaseName = (id: string) =>
+    loadCases.find((item) => item.id === id)?.name ?? 'Unknown';
+
+  const formatLoad = (assignment: LoadAssignment) => {
+    if (assignment.loadType === 'Joint Load') {
+      return (
+        'Fx=' + (assignment.fx ?? 0) + ' kN, ' +
+        'Fy=' + (assignment.fy ?? 0) + ' kN, ' +
+        'Fz=' + (assignment.fz ?? 0) + ' kN, ' +
+        'Mz=' + (assignment.mz ?? 0) + ' kN·m'
+      );
+    }
+    if (assignment.loadType === 'Area Load') {
+      return (
+        'q=' + (assignment.pressure ?? 0) + ' kPa, ' +
+        (assignment.direction ?? 'Global Z')
+      );
+    }
+    if (assignment.loadType === 'Frame Point Load') {
+      return (
+        'P=' + (assignment.magnitudeStart ?? 0) + ' kN, ' +
+        (assignment.direction ?? 'Global Z') +
+        ', x=' + (assignment.distanceFromStart ?? 0) + ' m'
+      );
+    }
+    return (
+      'w=' + (assignment.magnitudeStart ?? 0) + ' → ' +
+      (assignment.magnitudeEnd ?? assignment.magnitudeStart ?? 0) +
+      ' kN/m, ' + (assignment.direction ?? 'Global Z')
+    );
+  };
 
   const apply = () => {
     const g: any = { ...element.geometry };
@@ -174,6 +215,48 @@ export function StructuralPropertyDialog({
           ))}
         </div>
 
+        <div className="rounded-md border mt-4">
+          <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2">
+            <div className="text-xs font-semibold">Assigned Loads</div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setAssignLoadsOpen(true)}
+            >
+              Assign Loads
+            </Button>
+          </div>
+
+          <div className="max-h-40 overflow-y-auto">
+            {assignments.length === 0 ? (
+              <div className="p-3 text-[11px] text-muted-foreground">
+                No loads assigned to this object.
+              </div>
+            ) : (
+              assignments.map((assignment) => (
+                <div
+                  key={assignment.id}
+                  className="border-b px-3 py-2 last:border-0"
+                >
+                  <div className="text-[11px] font-medium">
+                    {assignment.loadType}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {loadCaseName(assignment.loadCaseId)} · {formatLoad(assignment)}
+                  </div>
+                  {assignment.description && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                      {assignment.description}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -181,6 +264,12 @@ export function StructuralPropertyDialog({
           <Button onClick={apply}>Apply</Button>
         </DialogFooter>
       </DialogContent>
+
+      <AssignLoadsDialog
+        open={assignLoadsOpen}
+        onOpenChange={setAssignLoadsOpen}
+        element={element}
+      />
     </Dialog>
   );
 }
