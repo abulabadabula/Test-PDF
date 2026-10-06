@@ -124,6 +124,8 @@ export function StructuralPropertyDialog({
         'Fx=' + (assignment.fx ?? 0) + ' kN, ' +
         'Fy=' + (assignment.fy ?? 0) + ' kN, ' +
         'Fz=' + (assignment.fz ?? 0) + ' kN, ' +
+        'Mx=' + (assignment.mx ?? 0) + ' kN·m, ' +
+        'My=' + (assignment.my ?? 0) + ' kN·m, ' +
         'Mz=' + (assignment.mz ?? 0) + ' kN·m'
       );
     }
