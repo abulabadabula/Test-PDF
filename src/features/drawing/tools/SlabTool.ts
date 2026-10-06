@@ -81,6 +81,7 @@ export class SlabTool extends BaseTool {
           label,
           thickness: defaults.realThickness,
           material: defaults.material,
+          materialId: defaults.materialId,
           level: defaults.level,
         },
       } as any);
