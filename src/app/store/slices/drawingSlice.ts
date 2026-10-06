@@ -3,6 +3,7 @@
 import { createAction, createSlice, Middleware, nanoid, PayloadAction, UnknownAction } from '@reduxjs/toolkit';
 import type { RootState } from '../index';
 import type { StructuralElement, StructuralElementType } from '@/features/drawing/elements/elementTypes';
+import { clearStructuralReferencesToNode, reconcileStructuralTopology, updateStructuralShape } from '@/features/drawing/geometry/structuralTopology';
 
 export type ToolType =
   | 'select' | 'column' | 'beam' | 'wall' | 'slab' | 'portalFrame' | 'rectSlab'
@@ -225,20 +226,20 @@ export const drawingSlice = createSlice({
         updatedAt: now,
       } as Shape;
       s.shapes.push(shape);
+      reconcileStructuralTopology(s.shapes as unknown as Shape[]);
       s.selectedShapeIds = [shape.id];
     },
 
     updateShape: (s, a: PayloadAction<{ id: string; changes: Partial<Shape> }>) => {
-      const shape = s.shapes.find((x) => x.id === a.payload.id);
-      if (shape) {
-        Object.assign(shape, a.payload.changes, {
-          updatedAt: new Date().toISOString(),
-        });
-      }
+      updateStructuralShape(s.shapes as unknown as Shape[], a.payload.id, a.payload.changes);
     },
 
     deleteShape: (s, a: PayloadAction<string>) => {
+      const deleted = s.shapes.find((x) => x.id === a.payload);
       s.shapes = s.shapes.filter((x) => x.id !== a.payload);
+      if (deleted?.type === 'node') {
+        clearStructuralReferencesToNode(s.shapes as unknown as Shape[], a.payload);
+      }
       s.selectedShapeIds = s.selectedShapeIds.filter((id) => id !== a.payload);
     },
 
@@ -338,6 +339,7 @@ export const drawingSlice = createSlice({
       });
 
       s.shapes.push(...pasted);
+      reconcileStructuralTopology(s.shapes as unknown as Shape[]);
       s.selectedShapeIds = pasted.map((x: any) => x.id);
       s.clipboard = pasted.map((x: any) => JSON.parse(JSON.stringify(x)));
     },
@@ -431,6 +433,7 @@ export const drawingSlice = createSlice({
 
     importShapes: (s, a: PayloadAction<Shape[]>) => {
       s.shapes.push(...a.payload);
+      reconcileStructuralTopology(s.shapes as unknown as Shape[]);
     },
 
     _setHistoryState: (s, a: PayloadAction<'idle' | 'active'>) => {
