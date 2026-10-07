@@ -25,6 +25,7 @@ interface Props {
 }
 
 const directions: LoadDirection[] = ['Global X', 'Global Y', 'Global Z', 'Local 1', 'Local 2', 'Local 3'];
+
 function supportedTypes(type: StructuralElement['type']) {
   if (type === 'node') return ['Joint Load'] as LoadAssignmentType[];
   if (type === 'slab') return ['Area Load'] as LoadAssignmentType[];
@@ -41,7 +42,12 @@ function summary(a: LoadAssignment, caseName: string) {
   }
   if (a.loadType === 'Frame Point Load') {
     return caseName + ' · ' + (a.magnitudeStart ?? 0) + ' kN · ' +
-      (a.direction ?? 'Global Z') + ' · x=' + (a.distanceFromStart ?? 0) + ' m';
+      (a.direction ?? 'Global Z') + ' · rel. dist=' + (a.distanceFromStart ?? 0);
+  }
+  if (a.loadType === 'Frame Distributed Load') {
+    return caseName + ' · ' + (a.magnitudeStart ?? 0) + ' → ' +
+      (a.magnitudeEnd ?? a.magnitudeStart ?? 0) + ' kN/m · ' + (a.direction ?? 'Global Z') +
+      ' · rel. pos=' + (a.startRelativePosition ?? 0) + ' to ' + (a.endRelativePosition ?? 1);
   }
   return caseName + ' · ' + (a.magnitudeStart ?? 0) + ' → ' +
     (a.magnitudeEnd ?? a.magnitudeStart ?? 0) + ' kN/m · ' + (a.direction ?? 'Global Z');
@@ -70,6 +76,8 @@ export function AssignLoadsDialog({
   const [mz, setMz] = useState('0');
 
   const [distanceFromStart, setDistanceFromStart] = useState('0');
+  const [startRelativePosition, setStartRelativePosition] = useState('0');
+  const [endRelativePosition, setEndRelativePosition] = useState('1');
   const [magnitudeStart, setMagnitudeStart] = useState('0');
   const [magnitudeEnd, setMagnitudeEnd] = useState('0');
   const [pressure, setPressure] = useState('0');
@@ -107,6 +115,8 @@ export function AssignLoadsDialog({
       setMy(String(editingAssignment.my ?? 0));
       setMz(String(editingAssignment.mz ?? 0));
       setDistanceFromStart(String(editingAssignment.distanceFromStart ?? 0));
+      setStartRelativePosition(String(editingAssignment.startRelativePosition ?? 0));
+      setEndRelativePosition(String(editingAssignment.endRelativePosition ?? 1));
       setMagnitudeStart(String(editingAssignment.magnitudeStart ?? 0));
       setMagnitudeEnd(String(editingAssignment.magnitudeEnd ?? 0));
       setPressure(String(editingAssignment.pressure ?? 0));
@@ -120,11 +130,43 @@ export function AssignLoadsDialog({
     setFx('0'); setFy('0'); setFz('0');
     setMx('0'); setMy('0'); setMz('0');
     setDistanceFromStart('0');
+    setStartRelativePosition('0');
+    setEndRelativePosition('1');
     setMagnitudeStart('0'); setMagnitudeEnd('0');
     setPressure('0'); setDescription('');
   }, [open, element, loadCases, supported, editingAssignment]);
 
   const num = (value: string) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  // ============================================================================
+  // STRICT VALIDATION LOGIC
+  // ============================================================================
+  const isPointLoadValid = useMemo(() => {
+    const dist = Number(distanceFromStart);
+    return Number.isFinite(dist) && dist >= 0 && dist <= 1;
+  }, [distanceFromStart]);
+
+  const isDistLoadValid = useMemo(() => {
+    const startPos = Number(startRelativePosition);
+    const endPos = Number(endRelativePosition);
+    return (
+      Number.isFinite(startPos) &&
+      Number.isFinite(endPos) &&
+      startPos >= 0 &&
+      startPos <= 1 &&
+      endPos >= 0 &&
+      endPos <= 1 &&
+      endPos > startPos
+    );
+  }, [startRelativePosition, endRelativePosition]);
+
+  const isFormValid = useMemo(() => {
+    if (!loadCaseId) return false;
+    if (loadType === 'Frame Point Load') return isPointLoadValid;
+    if (loadType === 'Frame Distributed Load') return isDistLoadValid;
+    return true; // Joint Load and Area Load have no strict relative position constraints
+  }, [loadCaseId, loadType, isPointLoadValid, isDistLoadValid]);
+  // ============================================================================
 
   const buildChanges = () => {
     const base = {
@@ -142,6 +184,8 @@ export function AssignLoadsDialog({
         mx: num(mx), my: num(my), mz: num(mz),
         direction: undefined,
         distanceFromStart: undefined,
+        startRelativePosition: undefined,
+        endRelativePosition: undefined,
         magnitudeStart: undefined,
         magnitudeEnd: undefined,
         pressure: undefined,
@@ -156,6 +200,8 @@ export function AssignLoadsDialog({
         fx: undefined, fy: undefined, fz: undefined,
         mx: undefined, my: undefined, mz: undefined,
         distanceFromStart: undefined,
+        startRelativePosition: undefined,
+        endRelativePosition: undefined,
         magnitudeStart: undefined,
         magnitudeEnd: undefined,
       };
@@ -168,6 +214,8 @@ export function AssignLoadsDialog({
         distanceFromStart: num(distanceFromStart),
         magnitudeStart: num(magnitudeStart),
         magnitudeEnd: undefined,
+        startRelativePosition: undefined,
+        endRelativePosition: undefined,
         pressure: undefined,
         fx: undefined, fy: undefined, fz: undefined,
         mx: undefined, my: undefined, mz: undefined,
@@ -177,6 +225,8 @@ export function AssignLoadsDialog({
     return {
       ...base,
       direction,
+      startRelativePosition: num(startRelativePosition),
+      endRelativePosition: num(endRelativePosition),
       magnitudeStart: num(magnitudeStart),
       magnitudeEnd: num(magnitudeEnd),
       distanceFromStart: undefined,
@@ -191,25 +241,14 @@ export function AssignLoadsDialog({
   };
 
   const add = () => {
-    if (!element || !loadCaseId) return;
-
-    dispatch(
-      addLoadAssignment(
-        buildChanges(),
-      ),
-    );
+    if (!element || !loadCaseId || !isFormValid) return;
+    dispatch(addLoadAssignment(buildChanges()));
     setDescription('');
   };
 
   const saveEdit = () => {
-    if (!editingAssignment || !element || !loadCaseId) return;
-
-    dispatch(
-      updateLoadAssignment({
-        id: editingAssignment.id,
-        changes: buildChanges(),
-      }),
-    );
+    if (!editingAssignment || !element || !loadCaseId || !isFormValid) return;
+    dispatch(updateLoadAssignment({ id: editingAssignment.id, changes: buildChanges() }));
     resetEdit();
     onOpenChange(false);
   };
@@ -220,8 +259,8 @@ export function AssignLoadsDialog({
       resetEdit();
     }
   };
-  const caseName = (id: string) =>
-    loadCases.find((item) => item.id === id)?.name ?? 'Unknown';
+  
+  const caseName = (id: string) => loadCases.find((item) => item.id === id)?.name ?? 'Unknown';
 
   if (!element) return null;
 
@@ -230,9 +269,7 @@ export function AssignLoadsDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingAssignment
-              ? 'Edit Load — ' + element.label
-              : 'Assign Loads — ' + element.label}
+            {editingAssignment ? 'Edit Load — ' + element.label : 'Assign Loads — ' + element.label}
           </DialogTitle>
         </DialogHeader>
 
@@ -304,9 +341,21 @@ export function AssignLoadsDialog({
                 {loadType === 'Frame Point Load' ? (
                   <>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Distance from Start [m]</Label>
-                      <Input className="h-8" type="number" min="0" step="0.01"
-                        value={distanceFromStart} onChange={(e) => setDistanceFromStart(e.target.value)} />
+                      <Label className="text-xs">Relative Distance from Start (0 to 1)</Label>
+                      <Input 
+                        className="h-8" 
+                        type="number" 
+                        min="0" 
+                        max="1" 
+                        step="0.01"
+                        value={distanceFromStart} 
+                        onChange={(e) => setDistanceFromStart(e.target.value)} 
+                      />
+                      {!isPointLoadValid && (
+                        <span className="text-[10px] text-red-500 font-medium">
+                          Error: Must be a number between 0 and 1
+                        </span>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Magnitude [kN]</Label>
@@ -316,6 +365,40 @@ export function AssignLoadsDialog({
                   </>
                 ) : (
                   <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Start Relative Position (0 to 1)</Label>
+                      <Input 
+                        className="h-8" 
+                        type="number" 
+                        min="0" 
+                        max="1" 
+                        step="0.01"
+                        value={startRelativePosition} 
+                        onChange={(e) => setStartRelativePosition(e.target.value)} 
+                      />
+                      {!isDistLoadValid && (
+                        <span className="text-[10px] text-red-500 font-medium">
+                          Error: Must be between 0 and 1
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">End Relative Position (0 to 1)</Label>
+                      <Input 
+                        className="h-8" 
+                        type="number" 
+                        min="0" 
+                        max="1" 
+                        step="0.01"
+                        value={endRelativePosition} 
+                        onChange={(e) => setEndRelativePosition(e.target.value)} 
+                      />
+                      {!isDistLoadValid && (
+                        <span className="text-[10px] text-red-500 font-medium">
+                          Error: Must be between 0 and 1, and strictly greater than Start Position
+                        </span>
+                      )}
+                    </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Start Magnitude [kN/m]</Label>
                       <Input className="h-8" type="number" step="0.01"
@@ -359,16 +442,13 @@ export function AssignLoadsDialog({
             <Button
               className="flex-1 h-9"
               onClick={editingAssignment ? saveEdit : add}
-              disabled={!loadCases.length || !loadCaseId}
+              disabled={!isFormValid}
+              title={!isFormValid ? "Please fix the validation errors before submitting" : ""}
             >
               {editingAssignment ? 'Save Load Changes' : 'Assign Load'}
             </Button>
             {editingAssignment && (
-              <Button
-                variant="outline"
-                className="h-9"
-                onClick={resetEdit}
-              >
+              <Button variant="outline" className="h-9" onClick={resetEdit}>
                 Cancel Edit
               </Button>
             )}
