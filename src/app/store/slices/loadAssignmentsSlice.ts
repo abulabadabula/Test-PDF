@@ -45,6 +45,24 @@ export const loadAssignmentsSlice = createSlice({
     deleteLoadAssignment: (state, action: PayloadAction<string>) => {
       state.assignments = state.assignments.filter((item) => item.id !== action.payload);
     },
+
+    updateLoadAssignment: (
+      state,
+      action: PayloadAction<{
+        id: string;
+        changes: Partial<
+          Omit<LoadAssignment, 'id' | 'createdAt' | 'source'>
+        >;
+      }>,
+    ) => {
+      const index = state.assignments.findIndex(
+        (item) => item.id === action.payload.id,
+      );
+
+      if (index !== -1) {
+        Object.assign(state.assignments[index], action.payload.changes);
+      }
+    },
     deleteAssignmentsForTarget: (state, action: PayloadAction<string>) => {
       state.assignments = state.assignments.filter((item) => item.targetId !== action.payload);
     },
@@ -69,7 +87,11 @@ export const loadAssignmentsSlice = createSlice({
   },
 });
 
-export const { addLoadAssignment, deleteLoadAssignment, deleteAssignmentsForTarget } =
-  loadAssignmentsSlice.actions;
+export const {
+  addLoadAssignment,
+  updateLoadAssignment,
+  deleteLoadAssignment,
+  deleteAssignmentsForTarget,
+} = loadAssignmentsSlice.actions;
 
 export default loadAssignmentsSlice.reducer;

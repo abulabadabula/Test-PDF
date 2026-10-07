@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   addLoadAssignment,
+  updateLoadAssignment,
   deleteLoadAssignment,
   type LoadAssignment,
   type LoadAssignmentType,
@@ -19,6 +20,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   element: StructuralElement | null;
+  editAssignmentId?: string | null;
+  onEditAssignmentIdChange?: (id: string | null) => void;
 }
 
 const directions: LoadDirection[] = ['Global X', 'Global Y', 'Global Z', 'Local 1', 'Local 2', 'Local 3'];
@@ -44,7 +47,13 @@ function summary(a: LoadAssignment, caseName: string) {
     (a.magnitudeEnd ?? a.magnitudeStart ?? 0) + ' kN/m · ' + (a.direction ?? 'Global Z');
 }
 
-export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
+export function AssignLoadsDialog({
+  open,
+  onOpenChange,
+  element,
+  editAssignmentId = null,
+  onEditAssignmentIdChange,
+}: Props) {
   const dispatch = useAppDispatch();
   const loadCases = useAppSelector((s) => s.loads.loadCases);
   const assignments = useAppSelector((s) => s.loadAssignments.assignments);
@@ -76,8 +85,35 @@ export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
     [assignments, element],
   );
 
+  const editingAssignment = useMemo(
+    () =>
+      editAssignmentId
+        ? assignments.find((assignment) => assignment.id === editAssignmentId)
+        : undefined,
+    [assignments, editAssignmentId],
+  );
+
   useEffect(() => {
     if (!open || !element) return;
+
+    if (editingAssignment) {
+      setLoadCaseId(editingAssignment.loadCaseId);
+      setLoadType(editingAssignment.loadType);
+      setDirection(editingAssignment.direction ?? 'Global Z');
+      setFx(String(editingAssignment.fx ?? 0));
+      setFy(String(editingAssignment.fy ?? 0));
+      setFz(String(editingAssignment.fz ?? 0));
+      setMx(String(editingAssignment.mx ?? 0));
+      setMy(String(editingAssignment.my ?? 0));
+      setMz(String(editingAssignment.mz ?? 0));
+      setDistanceFromStart(String(editingAssignment.distanceFromStart ?? 0));
+      setMagnitudeStart(String(editingAssignment.magnitudeStart ?? 0));
+      setMagnitudeEnd(String(editingAssignment.magnitudeEnd ?? 0));
+      setPressure(String(editingAssignment.pressure ?? 0));
+      setDescription(editingAssignment.description ?? '');
+      return;
+    }
+
     setLoadCaseId(loadCases[0]?.id ?? '');
     setLoadType(supported[0] ?? 'Joint Load');
     setDirection('Global Z');
@@ -86,43 +122,104 @@ export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
     setDistanceFromStart('0');
     setMagnitudeStart('0'); setMagnitudeEnd('0');
     setPressure('0'); setDescription('');
-  }, [open, element, loadCases, supported]);
+  }, [open, element, loadCases, supported, editingAssignment]);
 
   const num = (value: string) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
-  const add = () => {
-    if (!element || !loadCaseId) return;
+  const buildChanges = () => {
     const base = {
-      targetId: element.id,
-      targetType: element.type,
+      targetId: element?.id ?? '',
+      targetType: element?.type ?? 'node',
       loadCaseId,
       loadType,
       description: description.trim(),
-    };
+    } satisfies Omit<LoadAssignment, 'id' | 'createdAt' | 'source'>;
 
     if (loadType === 'Joint Load') {
-      dispatch(addLoadAssignment({
-        ...base, fx: num(fx), fy: num(fy), fz: num(fz),
+      return {
+        ...base,
+        fx: num(fx), fy: num(fy), fz: num(fz),
         mx: num(mx), my: num(my), mz: num(mz),
-      }));
-    } else if (loadType === 'Area Load') {
-      dispatch(addLoadAssignment({ ...base, direction, pressure: num(pressure) }));
-    } else if (loadType === 'Frame Point Load') {
-      dispatch(addLoadAssignment({
-        ...base, direction,
+        direction: undefined,
+        distanceFromStart: undefined,
+        magnitudeStart: undefined,
+        magnitudeEnd: undefined,
+        pressure: undefined,
+      };
+    }
+
+    if (loadType === 'Area Load') {
+      return {
+        ...base,
+        direction,
+        pressure: num(pressure),
+        fx: undefined, fy: undefined, fz: undefined,
+        mx: undefined, my: undefined, mz: undefined,
+        distanceFromStart: undefined,
+        magnitudeStart: undefined,
+        magnitudeEnd: undefined,
+      };
+    }
+
+    if (loadType === 'Frame Point Load') {
+      return {
+        ...base,
+        direction,
         distanceFromStart: num(distanceFromStart),
         magnitudeStart: num(magnitudeStart),
-      }));
-    } else {
-      dispatch(addLoadAssignment({
-        ...base, direction,
-        magnitudeStart: num(magnitudeStart),
-        magnitudeEnd: num(magnitudeEnd),
-      }));
+        magnitudeEnd: undefined,
+        pressure: undefined,
+        fx: undefined, fy: undefined, fz: undefined,
+        mx: undefined, my: undefined, mz: undefined,
+      };
     }
+
+    return {
+      ...base,
+      direction,
+      magnitudeStart: num(magnitudeStart),
+      magnitudeEnd: num(magnitudeEnd),
+      distanceFromStart: undefined,
+      pressure: undefined,
+      fx: undefined, fy: undefined, fz: undefined,
+      mx: undefined, my: undefined, mz: undefined,
+    };
+  };
+
+  const resetEdit = () => {
+    onEditAssignmentIdChange?.(null);
+  };
+
+  const add = () => {
+    if (!element || !loadCaseId) return;
+
+    dispatch(
+      addLoadAssignment(
+        buildChanges(),
+      ),
+    );
     setDescription('');
   };
 
+  const saveEdit = () => {
+    if (!editingAssignment || !element || !loadCaseId) return;
+
+    dispatch(
+      updateLoadAssignment({
+        id: editingAssignment.id,
+        changes: buildChanges(),
+      }),
+    );
+    resetEdit();
+    onOpenChange(false);
+  };
+
+  const deleteAssignment = (id: string) => {
+    dispatch(deleteLoadAssignment(id));
+    if (editAssignmentId === id) {
+      resetEdit();
+    }
+  };
   const caseName = (id: string) =>
     loadCases.find((item) => item.id === id)?.name ?? 'Unknown';
 
@@ -132,7 +229,11 @@ export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Assign Loads — {element.label}</DialogTitle>
+          <DialogTitle>
+            {editingAssignment
+              ? 'Edit Load — ' + element.label
+              : 'Assign Loads — ' + element.label}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -254,10 +355,24 @@ export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
             </div>
           </div>
 
-          <Button className="w-full h-9" onClick={add}
-            disabled={!loadCases.length || !loadCaseId}>
-            Assign Load
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1 h-9"
+              onClick={editingAssignment ? saveEdit : add}
+              disabled={!loadCases.length || !loadCaseId}
+            >
+              {editingAssignment ? 'Save Load Changes' : 'Assign Load'}
+            </Button>
+            {editingAssignment && (
+              <Button
+                variant="outline"
+                className="h-9"
+                onClick={resetEdit}
+              >
+                Cancel Edit
+              </Button>
+            )}
+          </div>
 
           <div className="rounded-md border">
             <div className="p-2 bg-muted font-medium text-xs">Assigned Loads</div>
@@ -272,10 +387,24 @@ export function AssignLoadsDialog({ open, onOpenChange, element }: Props) {
                     <div className="mt-0.5 text-[10px] text-muted-foreground">{summary(a, caseName(a.loadCaseId))}</div>
                     {a.description && <div className="mt-1 text-[10px] text-muted-foreground">{a.description}</div>}
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => dispatch(deleteLoadAssignment(a.id))}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() => onEditAssignmentIdChange?.(a.id)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteAssignment(a.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

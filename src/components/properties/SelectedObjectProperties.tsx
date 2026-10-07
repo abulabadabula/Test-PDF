@@ -11,9 +11,9 @@ import type {
   WallElement,
 } from '@/features/drawing/elements/elementTypes';
 
-import {
-  pagePtToRealMm,
-} from '@/core/coordinate/engineeringScale';
+import { pagePtToRealMm } from '@/core/coordinate/engineeringScale';
+import type { Material, Section } from '@/app/store/slices/propertiesSlice';
+import type { LoadAssignment } from '@/app/store/slices/loadAssignmentsSlice';
 
 
 // ============================================================================
@@ -165,6 +165,56 @@ function getElementTypeLabel(
 }
 
 
+function findLinkedSection(
+  element: StructuralElement,
+  sections: Section[],
+): Section | undefined {
+  const properties = element.properties as any;
+
+  if (typeof properties.sectionId === 'string') {
+    const byId = sections.find((section) => section.id === properties.sectionId);
+    if (byId) return byId;
+  }
+
+  const sectionName =
+    typeof properties.section === 'string' ? properties.section : '';
+
+  if (!sectionName) return undefined;
+
+  return sections.find(
+    (section) => section.name.toLowerCase() === sectionName.toLowerCase(),
+  );
+}
+
+function findLinkedMaterial(
+  element: StructuralElement,
+  materials: Material[],
+  section?: Section,
+): Material | undefined {
+  const properties = element.properties as any;
+
+  if (section) {
+    const sectionMaterial = materials.find(
+      (material) => material.id === section.materialId,
+    );
+    if (sectionMaterial) return sectionMaterial;
+  }
+
+  if (typeof properties.materialId === 'string') {
+    const byId = materials.find(
+      (material) => material.id === properties.materialId,
+    );
+    if (byId) return byId;
+  }
+
+  const materialName =
+    typeof properties.material === 'string' ? properties.material : '';
+
+  return materials.find(
+    (material) => material.name.toLowerCase() === materialName.toLowerCase(),
+  );
+}
+
 // ============================================================================
 // GEOMETRY HELPERS
 // ============================================================================
@@ -195,37 +245,96 @@ function pagePtLengthToMm(
 }
 
 
-// ============================================================================
-// LOAD PLACEHOLDER
-// ============================================================================
+function formatAssignmentLoad(
+  assignment: LoadAssignment,
+  caseName: string,
+): string {
+  if (assignment.loadType === 'Joint Load') {
+    return (
+      caseName +
+      ' · Fx ' + (assignment.fx ?? 0) +
+      ' kN · Fy ' + (assignment.fy ?? 0) +
+      ' kN · Fz ' + (assignment.fz ?? 0) +
+      ' kN · Mx ' + (assignment.mx ?? 0) +
+      ' kN·m · My ' + (assignment.my ?? 0) +
+      ' kN·m · Mz ' + (assignment.mz ?? 0) + ' kN·m'
+    );
+  }
 
-function LoadsPlaceholder() {
+  if (assignment.loadType === 'Area Load') {
+    return (
+      caseName +
+      ' · ' + (assignment.pressure ?? 0) +
+      ' kPa · ' + (assignment.direction ?? 'Global Z')
+    );
+  }
+
+  if (assignment.loadType === 'Frame Point Load') {
+    return (
+      caseName +
+      ' · P ' + (assignment.magnitudeStart ?? 0) +
+      ' kN · ' + (assignment.direction ?? 'Global Z') +
+      ' · x=' + (assignment.distanceFromStart ?? 0) + ' m'
+    );
+  }
+
   return (
-    <PropertySection title="Loads">
-      <div className="space-y-1">
-        <PropertyRow
-          label="Point Load"
-          value={<EmptyValue>No loads</EmptyValue>}
-        />
-
-        <PropertyRow
-          label="Distributed Load"
-          value={<EmptyValue>No loads</EmptyValue>}
-        />
-
-        <PropertyRow
-          label="Moment"
-          value={<EmptyValue>No loads</EmptyValue>}
-        />
-      </div>
-
-      <div className="mt-2 rounded bg-gray-50 px-2 py-2 text-[10px] leading-4 text-gray-400">
-        Load assignment will be added in the structural analysis module.
-      </div>
-    </PropertySection>
+    caseName +
+    ' · w ' + (assignment.magnitudeStart ?? 0) +
+    ' → ' + (assignment.magnitudeEnd ?? assignment.magnitudeStart ?? 0) +
+    ' kN/m · ' + (assignment.direction ?? 'Global Z')
   );
 }
 
+function SelectedElementLoads({
+  element,
+}: {
+  element: StructuralElement;
+}) {
+  const assignments = useAppSelector((state) =>
+    state.loadAssignments.assignments.filter(
+      (assignment) => assignment.targetId === element.id,
+    ),
+  );
+  const loadCases = useAppSelector((state) => state.loads.loadCases);
+
+  const caseName = (id: string) =>
+    loadCases.find((item) => item.id === id)?.name ?? 'Unknown Load Case';
+
+  return (
+    <PropertySection title={assignments.length ? `Loads (${assignments.length})` : 'Loads'}>
+      {assignments.length === 0 ? (
+        <div className="text-[11px] text-gray-400">
+          No loads assigned.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {assignments.map((assignment) => (
+            <div
+              key={assignment.id}
+              className="rounded border border-gray-100 bg-gray-50 px-2 py-1.5"
+            >
+              <div className="text-[11px] font-medium text-gray-700">
+                {assignment.loadType}
+              </div>
+              <div className="mt-0.5 text-[10px] leading-4 text-gray-500">
+                {formatAssignmentLoad(
+                  assignment,
+                  caseName(assignment.loadCaseId),
+                )}
+              </div>
+              {assignment.description && (
+                <div className="mt-0.5 text-[10px] text-gray-400">
+                  {assignment.description}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </PropertySection>
+  );
+}
 
 // ============================================================================
 // NODE
@@ -395,6 +504,11 @@ function ColumnProperties({
     scaleDenominator,
   );
 
+  const sections = useAppSelector((state) => state.properties.sections);
+  const materials = useAppSelector((state) => state.properties.materials);
+  const section = findLinkedSection(element, sections);
+  const material = findLinkedMaterial(element, materials, section);
+
   return (
     <>
       <PropertySection title="Column">
@@ -443,18 +557,17 @@ function ColumnProperties({
       <PropertySection title="Section">
         <PropertyRow
           label="Section"
-          value={element.properties.section}
+          value={section?.name ?? element.properties.section}
         />
       </PropertySection>
 
       <PropertySection title="Material">
         <PropertyRow
           label="Material"
-          value={element.properties.material}
+          value={material?.name ?? element.properties.material}
         />
       </PropertySection>
 
-      <LoadsPlaceholder />
     </>
   );
 }
@@ -495,6 +608,11 @@ function BeamProperties({
     scaleNumerator,
     scaleDenominator,
   );
+
+  const sections = useAppSelector((state) => state.properties.sections);
+  const materials = useAppSelector((state) => state.properties.materials);
+  const section = findLinkedSection(element, sections);
+  const material = findLinkedMaterial(element, materials, section);
 
   return (
     <>
@@ -550,18 +668,17 @@ function BeamProperties({
       <PropertySection title="Section">
         <PropertyRow
           label="Section"
-          value={element.properties.section}
+          value={section?.name ?? element.properties.section}
         />
       </PropertySection>
 
       <PropertySection title="Material">
         <PropertyRow
           label="Material"
-          value={element.properties.material}
+          value={material?.name ?? element.properties.material}
         />
       </PropertySection>
 
-      <LoadsPlaceholder />
     </>
   );
 }
@@ -596,6 +713,9 @@ function WallProperties({
     scaleNumerator,
     scaleDenominator,
   );
+
+  const materials = useAppSelector((state) => state.properties.materials);
+  const material = findLinkedMaterial(element, materials);
 
   return (
     <>
@@ -651,11 +771,10 @@ function WallProperties({
       <PropertySection title="Material">
         <PropertyRow
           label="Material"
-          value={element.properties.material}
+          value={material?.name ?? element.properties.material}
         />
       </PropertySection>
 
-      <LoadsPlaceholder />
     </>
   );
 }
@@ -670,6 +789,9 @@ function SlabProperties({
 }: {
   element: SlabElement;
 }) {
+  const materials = useAppSelector((state) => state.properties.materials);
+  const material = findLinkedMaterial(element, materials);
+
   return (
     <>
       <PropertySection title="Slab">
@@ -708,11 +830,10 @@ function SlabProperties({
       <PropertySection title="Material">
         <PropertyRow
           label="Material"
-          value={element.properties.material}
+          value={material?.name ?? element.properties.material}
         />
       </PropertySection>
 
-      <LoadsPlaceholder />
     </>
   );
 }
@@ -771,6 +892,11 @@ function PortalFrameProperties({
     scaleNumerator,
     scaleDenominator,
   );
+
+  const sections = useAppSelector((state) => state.properties.sections);
+  const materials = useAppSelector((state) => state.properties.materials);
+  const section = findLinkedSection(element, sections);
+  const material = findLinkedMaterial(element, materials, section);
 
   return (
     <>
@@ -851,18 +977,17 @@ function PortalFrameProperties({
       <PropertySection title="Section">
         <PropertyRow
           label="Section"
-          value={element.properties.section}
+          value={section?.name ?? element.properties.section}
         />
       </PropertySection>
 
       <PropertySection title="Material">
         <PropertyRow
           label="Material"
-          value={element.properties.material}
+          value={material?.name ?? element.properties.material}
         />
       </PropertySection>
 
-      <LoadsPlaceholder />
     </>
   );
 }
@@ -1064,6 +1189,8 @@ export function SelectedObjectProperties() {
             scaleDenominator={scaleDenominator}
           />
         )}
+
+        <SelectedElementLoads element={element} />
       </div>
     </div>
   );
