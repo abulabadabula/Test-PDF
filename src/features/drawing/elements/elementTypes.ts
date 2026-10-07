@@ -146,6 +146,8 @@ export interface PortalFrameElement extends StructuralBase {
     label: string;
     section: string;
     material: string;
+    sectionId?: string;
+    materialId?: string;
     startNodeId?: string;
     endNodeId?: string;
   };
