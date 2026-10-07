@@ -14,7 +14,9 @@ export interface LoadAssignment {
   fx?: number; fy?: number; fz?: number;
   mx?: number; my?: number; mz?: number;
   direction?: LoadDirection;
-  distanceFromStart?: number;
+  distanceFromStart?: number; // For Frame Point Load: relative distance (0 to 1)
+  startRelativePosition?: number; // For Frame Distributed Load: relative position (0 to 1)
+  endRelativePosition?: number; // For Frame Distributed Load: relative position (0 to 1)
   magnitudeStart?: number;
   magnitudeEnd?: number;
   pressure?: number;
@@ -50,9 +52,7 @@ export const loadAssignmentsSlice = createSlice({
       state,
       action: PayloadAction<{
         id: string;
-        changes: Partial<
-          Omit<LoadAssignment, 'id' | 'createdAt' | 'source'>
-        >;
+        changes: Partial<Omit<LoadAssignment, 'id' | 'createdAt' | 'source'>>;
       }>,
     ) => {
       const index = state.assignments.findIndex(
