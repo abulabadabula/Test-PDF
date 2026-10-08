@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { addShape, selectShapesByPage, selectSelectedShapes, selectShape } from '@/app/store/slices/drawingSlice';
+import { addShape, selectShapesBySheet, selectSelectedShapes, selectShape } from '@/app/store/slices/drawingSlice';
 import { ensurePage, selectPageCoordinateSystem, selectOriginMode } from '@/app/store/slices/pageCoordinateSlice';
 import type { Shape, TextShape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from './elements/elementTypes';
@@ -11,6 +11,7 @@ import { useHitTest } from './hooks/useHitTest';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { StructuralPropertyDialog } from './StructuralPropertyDialog';
 import { setCurrentDrawingScale } from '@/core/coordinate/engineeringScale';
+import { selectActivePlanSheet, selectCropMode } from '@/app/store/slices/planSheetSlice';
 import { drawPageGrid } from './snapping/gridUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -22,9 +23,17 @@ export function AnnotationCanvas() {
 
   const displayScale = useAppSelector((state) => state.pdf.scale);
   const currentPage = useAppSelector((state) => state.pdf.currentPage);
+  const activePlanSheet = useAppSelector(selectActivePlanSheet);
+  const cropMode = useAppSelector(selectCropMode);
   const layers = useAppSelector((state) => state.layer.layers);
   const activeLayerId = useAppSelector((state) => state.layer.activeLayerId);
-  const shapes = useAppSelector((state) => selectShapesByPage(state, currentPage));
+  const shapes = useAppSelector((state) =>
+    selectShapesBySheet(
+      state,
+      activePlanSheet?.id ?? null,
+      activePlanSheet?.sourcePage ?? currentPage,
+    ),
+  );
   const selectedShapes = useAppSelector(selectSelectedShapes);
   const pageCoordinateSystem = useAppSelector((state) =>
     selectPageCoordinateSystem(state, currentPage)
@@ -117,12 +126,28 @@ export function AnnotationCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(displayScale * dpr, 0, 0, displayScale * dpr, 0, 0);
 
+      const crop =
+        !cropMode &&
+        activePlanSheet &&
+        activePlanSheet.sourcePage === currentPage
+          ? activePlanSheet.crop
+          : null;
+
+      // The PDF canvas displays only the crop window, while the structural
+      // model continues to use source-page coordinates. Shift the drawing
+      // context rather than changing any stored geometry.
+      if (crop) {
+        ctx.translate(-crop.x, -crop.y);
+      }
+
       // Grid geometry is kept in page coordinates. Zoom only changes the
       // display transform, so grid spacing and snap spacing stay identical.
       if (showGrid) {
         drawPageGrid(ctx, {
-          pageWidth: width / Math.max(displayScale, 0.0001),
-          pageHeight: height / Math.max(displayScale, 0.0001),
+          pageWidth:
+            width / Math.max(displayScale, 0.0001) + (crop?.x ?? 0),
+          pageHeight:
+            height / Math.max(displayScale, 0.0001) + (crop?.y ?? 0),
           gridSize,
           origin: pageCoordinateSystem.origin,
           displayScale,
@@ -221,6 +246,8 @@ export function AnnotationCanvas() {
     canvasSizeVersion,
     pageCoordinateSystem,
     originMode,
+    activePlanSheet,
+    cropMode,
     showElementLabels,
     showElementSections,
     showGrid,
@@ -239,6 +266,7 @@ export function AnnotationCanvas() {
           fontFamily: 'sans-serif',
           layerId: activeLayerId,
           pageIndex: currentPage,
+          sheetId: activePlanSheet?.id,
           color: '#000000',
           strokeWidth: 1,
           opacity: 1,

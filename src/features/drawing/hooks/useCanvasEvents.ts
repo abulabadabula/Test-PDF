@@ -149,8 +149,18 @@ export function useCanvasEvents(
 
     const getStructuralElements = (): StructuralElement[] => {
       const state = store.getState();
+      const activeSheet = state.planSheet.sheets.find(
+        (sheet) => sheet.id === state.planSheet.activeSheetId,
+      );
+
+      const sourcePage = activeSheet?.sourcePage ?? state.pdf.currentPage;
+      const sheetId = activeSheet?.id ?? null;
+
       return state.drawing.shapes.filter(
-        (shape): shape is StructuralElement => shape.pageIndex === state.pdf.currentPage && isStructuralElement(shape)
+        (shape): shape is StructuralElement =>
+          shape.pageIndex === sourcePage &&
+          (!sheetId || !shape.sheetId || shape.sheetId === sheetId) &&
+          isStructuralElement(shape),
       );
     };
 

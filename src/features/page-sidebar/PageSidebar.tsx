@@ -3,6 +3,7 @@ import { useAppSelector, useAppDispatch } from '@/app/store/hooks';
 import { setCurrentPage } from '@/app/store/slices/pdfSlice';
 import { setScaleRatio } from '@/app/store/slices/drawingSlice';
 import { setPageScale, setPageUnit } from '@/app/store/slices/pageCoordinateSlice';
+import { activatePlanSheetForPage } from '@/app/store/slices/planSheetSlice';
 import { setCurrentDrawingScale } from '@/core/coordinate/engineeringScale';
 import { usePdfDocument } from '@/features/pdf-viewer/usePdfDocument';
 import { Button } from '@/components/ui/button';
@@ -369,13 +370,10 @@ export function PageSidebar() {
                     return (
                       <button
                         key={page.pageNumber}
-                        onClick={() =>
-                          dispatch(
-                            setCurrentPage(
-                              page.pageNumber,
-                            ),
-                          )
-                        }
+                        onClick={() => {
+                          dispatch(setCurrentPage(page.pageNumber));
+                          dispatch(activatePlanSheetForPage(page.pageNumber));
+                        }}
                         className={[
                           'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition-colors',
 

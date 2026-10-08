@@ -17,6 +17,7 @@ export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry
     id: 'temp',
     type,
     pageIndex: state.pdf.currentPage,
+    sheetId: state.planSheet.activeSheetId ?? undefined,
     layerId: state.layer.activeLayerId,
     geometry,
     properties: {} as any,
@@ -47,7 +48,11 @@ export function ensureLabel(ctx: ToolContext, type: StructuralElementType) {
   const state = ctx.getState();
   const prefix = prefixForType(type);
   const used = state.drawing.shapes
-    .filter((s: any) => s.pageIndex === state.pdf.currentPage && s.type === type)
+    .filter((s: any) =>
+      s.pageIndex === state.pdf.currentPage &&
+      s.type === type &&
+      (!state.planSheet.activeSheetId || !s.sheetId || s.sheetId === state.planSheet.activeSheetId)
+    )
     .map((s: any) => s.label as string);
 
   let i = 1;
@@ -81,6 +86,7 @@ export function getOrCreateNode(
 ): NodeResult {
   const state = ctx.getState();
   const pageIndex = state.pdf.currentPage;
+  const activeSheetId = state.planSheet.activeSheetId;
   const safePoint = {
     x: Number.isFinite(point.x) ? point.x : 0,
     y: Number.isFinite(point.y) ? point.y : 0,
@@ -88,7 +94,9 @@ export function getOrCreateNode(
 
   const nodes = state.drawing.shapes.filter(
     (shape: any): shape is NodeElement =>
-      shape.pageIndex === pageIndex && shape.type === 'node',
+      shape.pageIndex === pageIndex &&
+      shape.type === 'node' &&
+      (!activeSheetId || !shape.sheetId || shape.sheetId === activeSheetId),
   );
 
   let nearestNode: NodeElement | null = null;
