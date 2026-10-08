@@ -8,7 +8,8 @@ import {
   beginHistoryTransaction, endHistoryTransaction, copySelected, pasteClipboard,
   setActiveTool, undo, redo
 } from '@/app/store/slices/drawingSlice';
-import { setPageOrigin, selectPageCoordinateSystem, selectOriginMode, setOriginMode } from '@/app/store/slices/pageCoordinateSlice';
+import { setPageOrigin, setSheetOrigin, selectCoordinateSystem, selectOriginMode, setOriginMode } from '@/app/store/slices/pageCoordinateSlice';
+import { selectActivePlanSheet } from '@/app/store/slices/planSheetSlice';
 import type { Shape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from '../elements/elementTypes';
 import { BaseTool, ToolContext } from '../tools/BaseTool';
@@ -65,12 +66,16 @@ export function useCanvasEvents(
   const activeTool = useAppSelector((state) => state.drawing.activeTool);
   const pdfScale = useAppSelector((state) => state.pdf.scale);
   const currentPage = useAppSelector((state) => state.pdf.currentPage);
-  const coordinateSystem = useAppSelector((state) => selectPageCoordinateSystem(state, currentPage));
+  const activePlanSheet = useAppSelector(selectActivePlanSheet);
+  const coordinateSystem = useAppSelector((state) =>
+    selectCoordinateSystem(state, currentPage, activePlanSheet?.id ?? null)
+  );
   const originMode = useAppSelector(selectOriginMode);
 
   const activeToolRef = useRef(activeTool);
   const pdfScaleRef = useRef(pdfScale);
   const currentPageRef = useRef(currentPage);
+  const activePlanSheetRef = useRef(activePlanSheet);
   const coordinateSystemRef = useRef(coordinateSystem);
   const originModeRef = useRef(originMode);
   const tempShapeRef = useRef(tempShape);
@@ -84,6 +89,7 @@ export function useCanvasEvents(
   activeToolRef.current = activeTool;
   pdfScaleRef.current = pdfScale;
   currentPageRef.current = currentPage;
+  activePlanSheetRef.current = activePlanSheet;
   coordinateSystemRef.current = coordinateSystem;
   originModeRef.current = originMode;
   tempShapeRef.current = tempShape;
@@ -103,7 +109,28 @@ export function useCanvasEvents(
 
     const coords = (event: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      return screenToPage({ x: event.clientX, y: event.clientY }, rect, pdfScaleRef.current);
+
+      const localPoint = screenToPage(
+        { x: event.clientX, y: event.clientY },
+        rect,
+        pdfScaleRef.current,
+      );
+
+      const sheet = activePlanSheetRef.current;
+
+      // The visible canvas is the crop window, but structural geometry is
+      // stored in source-page coordinates.
+      if (
+        sheet &&
+        sheet.sourcePage === currentPageRef.current
+      ) {
+        return {
+          x: localPoint.x + sheet.crop.x,
+          y: localPoint.y + sheet.crop.y,
+        };
+      }
+
+      return localPoint;
     };
 
     const emitCoordinate = (point: { x: number; y: number }) => {
@@ -188,7 +215,19 @@ export function useCanvasEvents(
       const point = coords(event);
 
       if (originModeRef.current) {
-        dispatch(setPageOrigin({ pageIndex: currentPageRef.current, x: point.x, y: point.y }));
+        if (activePlanSheetRef.current?.id) {
+          dispatch(setSheetOrigin({
+            sheetId: activePlanSheetRef.current.id,
+            x: point.x,
+            y: point.y,
+          }));
+        } else {
+          dispatch(setPageOrigin({
+            pageIndex: currentPageRef.current,
+            x: point.x,
+            y: point.y,
+          }));
+        }
         dispatch(setOriginMode(false));
         emitCoordinate(point);
         return;

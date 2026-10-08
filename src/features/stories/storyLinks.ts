@@ -1,21 +1,19 @@
-// src/features/stories/storyLinks.ts
-//
-// Vertical relationships between levels are DERIVED, not stored: two nodes on
-// different stories are "linked" when their positions in the common
-// engineering frame coincide within a tolerance. Dragging a boundary point
-// away therefore breaks the link automatically (a setback / transfer).
-
 import type { Shape } from '@/app/store/slices/drawingSlice';
 import type { Story } from '@/app/store/slices/storySlice';
 import type { PageCoordinateSystem } from '@/core/coordinate/pageCoordinateSystem';
-import { frameOf, pageToFrame, type XY } from '@/core/coordinate/storyTransform';
+import {
+  frameForStory,
+  pageToFrame,
+  sourcePageForStory,
+  type XY,
+} from '@/core/coordinate/storyTransform';
+import type { PlanSheet } from '@/features/plan-sheets/planSheetTypes';
 
 export interface FrameNode {
   id: string;
+  sheetId: string;
   pageIndex: number;
-  /** Position in the common engineering frame (mm). */
   mm: XY;
-  /** Position in the node's own page coordinates. */
   page: XY;
 }
 
@@ -34,38 +32,103 @@ export interface VerticalLink {
 }
 
 export type PageSystems = Record<number, PageCoordinateSystem>;
+export type SheetSystems = Record<string, PageCoordinateSystem>;
 
-export function nodesOfStory(shapes: Shape[], story: Story, pages: PageSystems): FrameNode[] {
-  const frame = frameOf(pages, story.pageIndex, story.adjust);
+function shapeBelongsToStory(
+  shape: Shape,
+  story: Story,
+  sourcePage: number,
+): boolean {
+  if (shape.pageIndex !== sourcePage) return false;
+  if (shape.sheetId) return shape.sheetId === story.sheetId;
+
+  return story.sheetId.startsWith('legacy-page-');
+}
+
+export function nodesOfStory(
+  shapes: Shape[],
+  story: Story,
+  pageSystems: PageSystems,
+  sheetSystems: SheetSystems,
+  planSheets: PlanSheet[],
+): FrameNode[] {
+  const sourcePage = sourcePageForStory(story, planSheets);
+  const frame = frameForStory(
+    pageSystems,
+    sheetSystems,
+    story,
+    planSheets,
+  );
+
   const out: FrameNode[] = [];
-  for (const s of shapes) {
-    if (s.type !== 'node' || s.pageIndex !== story.pageIndex || !('geometry' in s)) continue;
-    const g = s.geometry as { x: number; y: number };
-    out.push({ id: s.id, pageIndex: s.pageIndex, mm: pageToFrame(g, frame), page: { x: g.x, y: g.y } });
+
+  for (const shape of shapes) {
+    if (
+      shape.type !== 'node' ||
+      !shapeBelongsToStory(shape, story, sourcePage) ||
+      !('geometry' in shape)
+    ) {
+      continue;
+    }
+
+    const geometry = shape.geometry as { x: number; y: number };
+
+    out.push({
+      id: shape.id,
+      sheetId: story.sheetId,
+      pageIndex: sourcePage,
+      mm: pageToFrame(geometry, frame),
+      page: { x: geometry.x, y: geometry.y },
+    });
   }
+
   return out;
 }
 
-/** One-to-one nearest matching of two node sets inside `radiusMm`. */
-export function pairNodes(A: FrameNode[], B: FrameNode[], radiusMm: number): NodePair[] {
-  const cand: NodePair[] = [];
-  for (const a of A) {
-    for (const b of B) {
-      const d = Math.hypot(a.mm.x - b.mm.x, a.mm.y - b.mm.y);
-      if (d <= radiusMm) cand.push({ a, b, distMm: d });
+export function pairNodes(
+  aNodes: FrameNode[],
+  bNodes: FrameNode[],
+  radiusMm: number,
+): NodePair[] {
+  const candidates: NodePair[] = [];
+
+  for (const a of aNodes) {
+    for (const b of bNodes) {
+      const distance = Math.hypot(
+        a.mm.x - b.mm.x,
+        a.mm.y - b.mm.y,
+      );
+
+      if (distance <= radiusMm) {
+        candidates.push({
+          a,
+          b,
+          distMm: distance,
+        });
+      }
     }
   }
-  cand.sort((p, q) => p.distMm - q.distMm);
+
+  candidates.sort((a, b) => a.distMm - b.distMm);
+
   const usedA = new Set<string>();
   const usedB = new Set<string>();
-  const out: NodePair[] = [];
-  for (const c of cand) {
-    if (usedA.has(c.a.id) || usedB.has(c.b.id)) continue;
-    usedA.add(c.a.id);
-    usedB.add(c.b.id);
-    out.push(c);
+  const pairs: NodePair[] = [];
+
+  for (const candidate of candidates) {
+    if (
+      usedA.has(candidate.a.id) ||
+      usedB.has(candidate.b.id)
+    ) {
+      continue;
+    }
+
+    usedA.add(candidate.a.id);
+    usedB.add(candidate.b.id);
+    pairs.push(candidate);
   }
-  return out;
+
+  return pairs;
 }
 
 export interface LevelSummary {
@@ -76,33 +139,62 @@ export interface LevelSummary {
   unlinkedUpper: number;
 }
 
-/** Links (and counts of unlinked nodes) between each pair of adjacent levels. */
 export function summarizeLevels(
   shapes: Shape[],
   stories: Story[],
-  pages: PageSystems,
+  pageSystems: PageSystems,
+  sheetSystems: SheetSystems,
+  planSheets: PlanSheet[],
   toleranceMm: number,
 ): LevelSummary[] {
-  const sorted = [...stories].sort((a, b) => a.elevationMm - b.elevationMm);
-  const nodes = new Map<string, FrameNode[]>();
-  for (const s of sorted) nodes.set(s.id, nodesOfStory(shapes, s, pages));
+  const ordered = [...stories].sort(
+    (a, b) => a.elevationMm - b.elevationMm,
+  );
 
-  const out: LevelSummary[] = [];
-  for (let i = 0; i < sorted.length - 1; i += 1) {
-    const lo = sorted[i];
-    const hi = sorted[i + 1];
-    const A = nodes.get(lo.id) ?? [];
-    const B = nodes.get(hi.id) ?? [];
-    const pairs = pairNodes(A, B, toleranceMm);
-    out.push({
-      lowerStory: lo,
-      upperStory: hi,
-      links: pairs.map((p) => ({
-        lower: p.a, upper: p.b, lowerStory: lo, upperStory: hi, distMm: p.distMm,
+  const nodes = new Map<string, FrameNode[]>();
+
+  for (const story of ordered) {
+    nodes.set(
+      story.id,
+      nodesOfStory(
+        shapes,
+        story,
+        pageSystems,
+        sheetSystems,
+        planSheets,
+      ),
+    );
+  }
+
+  const summaries: LevelSummary[] = [];
+
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    const lowerStory = ordered[index];
+    const upperStory = ordered[index + 1];
+
+    const lowerNodes = nodes.get(lowerStory.id) ?? [];
+    const upperNodes = nodes.get(upperStory.id) ?? [];
+
+    const pairs = pairNodes(
+      lowerNodes,
+      upperNodes,
+      toleranceMm,
+    );
+
+    summaries.push({
+      lowerStory,
+      upperStory,
+      links: pairs.map((pair) => ({
+        lower: pair.a,
+        upper: pair.b,
+        lowerStory,
+        upperStory,
+        distMm: pair.distMm,
       })),
-      unlinkedLower: A.length - pairs.length,
-      unlinkedUpper: B.length - pairs.length,
+      unlinkedLower: lowerNodes.length - pairs.length,
+      unlinkedUpper: upperNodes.length - pairs.length,
     });
   }
-  return out;
+
+  return summaries;
 }

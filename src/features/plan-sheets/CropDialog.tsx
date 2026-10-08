@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { store } from '@/app/store';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   addPlanSheet,
@@ -8,9 +9,14 @@ import {
   selectCropSession,
   updatePlanSheet,
 } from '@/app/store/slices/planSheetSlice';
+import { setCurrentPage } from '@/app/store/slices/pdfSlice';
 import {
-  setCurrentPage,
-} from '@/app/store/slices/pdfSlice';
+  selectPageCoordinateSystem,
+  setSheetEngineeringOrigin,
+  setSheetOrigin,
+  setSheetScale,
+  setSheetUnit,
+} from '@/app/store/slices/pageCoordinateSlice';
 import {
   assignShapesToSheet,
 } from '@/app/store/slices/drawingSlice';
@@ -86,6 +92,31 @@ export function CropDialog({ open, onOpenChange }: CropDialogProps) {
       sourcePage: session.sourcePage,
       sheetId: id,
       onlyUnassigned: true,
+    }));
+
+    const sourceCoordinate = selectPageCoordinateSystem(
+      store.getState(),
+      session.sourcePage,
+    );
+
+    dispatch(setSheetScale({
+      sheetId: id,
+      numerator: sourceCoordinate.scaleNumerator,
+      denominator: sourceCoordinate.scaleDenominator,
+    }));
+    dispatch(setSheetUnit({
+      sheetId: id,
+      unit: sourceCoordinate.unit,
+    }));
+    dispatch(setSheetOrigin({
+      sheetId: id,
+      x: sourceCoordinate.origin.x,
+      y: sourceCoordinate.origin.y,
+    }));
+    dispatch(setSheetEngineeringOrigin({
+      sheetId: id,
+      x: sourceCoordinate.engineeringOrigin.x,
+      y: sourceCoordinate.engineeringOrigin.y,
     }));
 
     dispatch(setCurrentPage(session.sourcePage));

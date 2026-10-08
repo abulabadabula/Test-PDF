@@ -1,26 +1,23 @@
 // src/app/store/slices/storySlice.ts
 //
-// A "story" (building level) is a PDF page + an elevation + overlay settings.
-// The page currently being edited is the BASE plan; every other visible story
-// is drawn on top of it as a transparent, tinted overlay.
-//
-// NOTE: `pageIndex` follows the rest of the app: it is the 1-based PDF page
-// number (same value as `state.pdf.currentPage` and `shape.pageIndex`).
+// A Story is an engineering building level associated with a virtual Plan
+// Sheet. pageIndex remains optional legacy source-page metadata so older
+// projects can still be interpreted and migrated.
 
 import { createSlice, nanoid, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../index';
+import type { PlanSheet } from '@/features/plan-sheets/planSheetTypes';
 
 export interface StoryAdjust {
-  /** Offset of this level in the common engineering frame (mm). */
   dxMm: number;
   dyMm: number;
-  /** Rotation of this level about the engineering origin (degrees, CCW). */
   rotationDeg: number;
 }
 
 export interface Story {
   id: string;
-  pageIndex: number;
+  sheetId: string;
+  pageIndex?: number;
   name: string;
   elevationMm: number;
   overlayVisible: boolean;
@@ -32,24 +29,41 @@ export interface Story {
 
 export interface StoryState {
   stories: Story[];
-  /** Two nodes on different levels closer than this are "vertically linked". */
   linkToleranceMm: number;
-  /** "Pull nodes" moves nodes of other levels that lie within this radius. */
   pullRadiusMm: number;
   showLinks: boolean;
   ghostSnap: boolean;
 }
 
-const TINTS = ['#ef4444', '#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#0891b2', '#db2777', '#65a30d'];
+const TINTS = [
+  '#ef4444',
+  '#2563eb',
+  '#16a34a',
+  '#f59e0b',
+  '#9333ea',
+  '#0891b2',
+  '#db2777',
+  '#65a30d',
+];
+
 const DEFAULT_STORY_HEIGHT_MM = 3000;
+const ZERO_ADJUST: StoryAdjust = {
+  dxMm: 0,
+  dyMm: 0,
+  rotationDeg: 0,
+};
 
-const ZERO_ADJUST: StoryAdjust = { dxMm: 0, dyMm: 0, rotationDeg: 0 };
-
-function createStory(pageIndex: number, order: number): Story {
+function createStory(
+  sheetId: string,
+  name: string,
+  order: number,
+  pageIndex?: number,
+): Story {
   return {
     id: nanoid(),
+    sheetId,
     pageIndex,
-    name: `Story ${pageIndex}`,
+    name,
     elevationMm: order * DEFAULT_STORY_HEIGHT_MM,
     overlayVisible: false,
     overlayOpacity: 0.4,
@@ -71,53 +85,164 @@ export const storySlice = createSlice({
   name: 'story',
   initialState,
   reducers: {
-    /** Create one story for every PDF page that does not have one yet. */
-    initStoriesFromPages: (state, action: PayloadAction<{ pageCount: number }>) => {
+    initStoriesFromPages: (
+      state,
+      action: PayloadAction<{ pageCount: number }>,
+    ) => {
       for (let page = 1; page <= action.payload.pageCount; page += 1) {
-        if (!state.stories.some((s) => s.pageIndex === page)) {
-          state.stories.push(createStory(page, page - 1));
+        const sheetId = 'legacy-page-' + page;
+
+        if (!state.stories.some((story) => story.sheetId === sheetId)) {
+          state.stories.push(
+            createStory(
+              sheetId,
+              'Story ' + page,
+              page - 1,
+              page,
+            ),
+          );
         }
       }
-      state.stories.sort((a, b) => a.pageIndex - b.pageIndex);
+
+      state.stories.sort((a, b) => {
+        const aa = a.pageIndex ?? Number.MAX_SAFE_INTEGER;
+        const bb = b.pageIndex ?? Number.MAX_SAFE_INTEGER;
+        return aa - bb;
+      });
     },
-    addStory: (state, action: PayloadAction<{ pageIndex: number }>) => {
-      if (state.stories.some((s) => s.pageIndex === action.payload.pageIndex)) return;
-      state.stories.push(createStory(action.payload.pageIndex, state.stories.length));
-      state.stories.sort((a, b) => a.pageIndex - b.pageIndex);
+
+    initStoriesFromPlanSheets: (
+      state,
+      action: PayloadAction<{ sheets: PlanSheet[] }>,
+    ) => {
+      const structuralSheets = action.payload.sheets
+        .filter((sheet) => sheet.role === 'structural')
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+      structuralSheets.forEach((sheet, order) => {
+        const existing = state.stories.find(
+          (story) => story.sheetId === sheet.id,
+        );
+
+        if (existing) {
+          existing.name = sheet.name;
+          existing.pageIndex = sheet.sourcePage;
+          return;
+        }
+
+        state.stories.push(
+          createStory(
+            sheet.id,
+            sheet.name,
+            order,
+            sheet.sourcePage,
+          ),
+        );
+      });
+
+      state.stories.sort((a, b) => a.elevationMm - b.elevationMm);
     },
-    updateStory: (state, action: PayloadAction<{ id: string; changes: Partial<Omit<Story, 'id' | 'adjust'>> }>) => {
-      const story = state.stories.find((s) => s.id === action.payload.id);
+
+    addStory: (
+      state,
+      action: PayloadAction<{
+        sheetId: string;
+        pageIndex?: number;
+        name?: string;
+      }>,
+    ) => {
+      if (state.stories.some((story) => story.sheetId === action.payload.sheetId)) {
+        return;
+      }
+
+      state.stories.push(
+        createStory(
+          action.payload.sheetId,
+          action.payload.name ?? action.payload.sheetId,
+          state.stories.length,
+          action.payload.pageIndex,
+        ),
+      );
+
+      state.stories.sort((a, b) => a.elevationMm - b.elevationMm);
+    },
+
+    updateStory: (
+      state,
+      action: PayloadAction<{
+        id: string;
+        changes: Partial<Omit<Story, 'id' | 'adjust'>>;
+      }>,
+    ) => {
+      const story = state.stories.find((item) => item.id === action.payload.id);
       if (story) Object.assign(story, action.payload.changes);
     },
-    updateStoryAdjust: (state, action: PayloadAction<{ id: string; changes: Partial<StoryAdjust> }>) => {
-      const story = state.stories.find((s) => s.id === action.payload.id);
+
+    updateStoryAdjust: (
+      state,
+      action: PayloadAction<{
+        id: string;
+        changes: Partial<StoryAdjust>;
+      }>,
+    ) => {
+      const story = state.stories.find((item) => item.id === action.payload.id);
       if (story) Object.assign(story.adjust, action.payload.changes);
     },
+
     removeStory: (state, action: PayloadAction<string>) => {
-      state.stories = state.stories.filter((s) => s.id !== action.payload);
+      state.stories = state.stories.filter((story) => story.id !== action.payload);
     },
+
     setAllOverlays: (state, action: PayloadAction<boolean>) => {
-      state.stories.forEach((s) => { s.overlayVisible = action.payload; });
+      state.stories.forEach((story) => {
+        story.overlayVisible = action.payload;
+      });
     },
+
     setLinkToleranceMm: (state, action: PayloadAction<number>) => {
-      if (Number.isFinite(action.payload) && action.payload >= 0) state.linkToleranceMm = action.payload;
+      if (Number.isFinite(action.payload) && action.payload >= 0) {
+        state.linkToleranceMm = action.payload;
+      }
     },
+
     setPullRadiusMm: (state, action: PayloadAction<number>) => {
-      if (Number.isFinite(action.payload) && action.payload >= 0) state.pullRadiusMm = action.payload;
+      if (Number.isFinite(action.payload) && action.payload >= 0) {
+        state.pullRadiusMm = action.payload;
+      }
     },
-    setShowLinks: (state, action: PayloadAction<boolean>) => { state.showLinks = action.payload; },
-    setGhostSnap: (state, action: PayloadAction<boolean>) => { state.ghostSnap = action.payload; },
+
+    setShowLinks: (state, action: PayloadAction<boolean>) => {
+      state.showLinks = action.payload;
+    },
+
+    setGhostSnap: (state, action: PayloadAction<boolean>) => {
+      state.ghostSnap = action.payload;
+    },
   },
 });
 
 export const {
-  initStoriesFromPages, addStory, updateStory, updateStoryAdjust, removeStory,
-  setAllOverlays, setLinkToleranceMm, setPullRadiusMm, setShowLinks, setGhostSnap,
+  initStoriesFromPages,
+  initStoriesFromPlanSheets,
+  addStory,
+  updateStory,
+  updateStoryAdjust,
+  removeStory,
+  setAllOverlays,
+  setLinkToleranceMm,
+  setPullRadiusMm,
+  setShowLinks,
+  setGhostSnap,
 } = storySlice.actions;
 
-export const selectStories = (s: RootState) => s.story.stories;
-export const selectStoryByPage = (s: RootState, pageIndex: number) =>
-  s.story.stories.find((st) => st.pageIndex === pageIndex);
+export const selectStories = (state: RootState) => state.story.stories;
+
+export const selectStoryBySheet = (state: RootState, sheetId: string) =>
+  state.story.stories.find((story) => story.sheetId === sheetId);
+
+export const selectStoryByPage = (state: RootState, pageIndex: number) =>
+  state.story.stories.find((story) => story.pageIndex === pageIndex);
 
 export { ZERO_ADJUST };
+
 export default storySlice;

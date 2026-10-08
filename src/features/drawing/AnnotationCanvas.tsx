@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { addShape, selectShapesBySheet, selectSelectedShapes, selectShape } from '@/app/store/slices/drawingSlice';
-import { ensurePage, selectPageCoordinateSystem, selectOriginMode } from '@/app/store/slices/pageCoordinateSlice';
+import { ensurePage, ensureSheet, selectCoordinateSystem, selectOriginMode } from '@/app/store/slices/pageCoordinateSlice';
 import type { Shape, TextShape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from './elements/elementTypes';
 import { renderShape } from './ShapeRenderer';
@@ -36,7 +36,7 @@ export function AnnotationCanvas() {
   );
   const selectedShapes = useAppSelector(selectSelectedShapes);
   const pageCoordinateSystem = useAppSelector((state) =>
-    selectPageCoordinateSystem(state, currentPage)
+    selectCoordinateSystem(state, currentPage, activePlanSheet?.id ?? null)
   );
   const originMode = useAppSelector(selectOriginMode);
 
@@ -62,8 +62,12 @@ export function AnnotationCanvas() {
   const gridSize = useAppSelector((state) => state.ui.gridSize);
 
   useEffect(() => {
-    dispatch(ensurePage({ pageIndex: currentPage }));
-  }, [dispatch, currentPage]);
+    if (activePlanSheet?.id) {
+      dispatch(ensureSheet({ sheetId: activePlanSheet.id, pageIndex: activePlanSheet.sourcePage }));
+    } else {
+      dispatch(ensurePage({ pageIndex: currentPage }));
+    }
+  }, [dispatch, currentPage, activePlanSheet?.id]);
 
   useEffect(() => {
     setCurrentDrawingScale(scaleNumerator, scaleDenominator);
@@ -277,7 +281,7 @@ export function AnnotationCanvas() {
 
     setTextDialog({ x: 0, y: 0, open: false });
     setTextInput('');
-  }, [dispatch, textInput, textDialog.x, textDialog.y, activeLayerId, currentPage]);
+  }, [dispatch, textInput, textDialog.x, textDialog.y, activeLayerId, currentPage, activePlanSheet?.id]);
 
   useCanvasEvents(
     canvasRef,

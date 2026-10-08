@@ -11,6 +11,7 @@ import {
   setActivePlanSheet,
   updatePlanSheet,
 } from '@/app/store/slices/planSheetSlice';
+import { removeStory } from '@/app/store/slices/storySlice';
 import { setCurrentPage } from '@/app/store/slices/pdfSlice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ export function PlanSheetPanel() {
   const dispatch = useAppDispatch();
   const sheets = useAppSelector(selectPlanSheets);
   const active = useAppSelector(selectActivePlanSheet);
+  const stories = useAppSelector((state) => state.story.stories);
   const currentPage = useAppSelector((state) => state.pdf.currentPage);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -42,7 +44,12 @@ export function PlanSheetPanel() {
   const commitRename = () => {
     if (!editingId) return;
     const value = editingName.trim();
-    if (value) dispatch(updatePlanSheet({ id: editingId, changes: { name: value } }));
+    if (value) {
+      dispatch(updatePlanSheet({
+        id: editingId,
+        changes: { name: value },
+      }));
+    }
     setEditingId(null);
   };
 
@@ -58,7 +65,16 @@ export function PlanSheetPanel() {
     const target = sheets.find((item) => item.id === sheetId);
     if (!target) return;
 
+    const relatedStory = stories.find(
+      (story) => story.sheetId === sheetId,
+    );
+
+    if (relatedStory) {
+      dispatch(removeStory(relatedStory.id));
+    }
+
     dispatch(removePlanSheet(sheetId));
+
     if (active?.id === sheetId) {
       dispatch(activatePlanSheetForPage(currentPage));
     }
@@ -70,7 +86,10 @@ export function PlanSheetPanel() {
 
     dispatch(setCurrentPage(sheet.sourcePage));
     dispatch(setActivePlanSheet(sheet.id));
-    dispatch(beginCrop({ sourcePage: sheet.sourcePage, sheetId: sheet.id }));
+    dispatch(beginCrop({
+      sourcePage: sheet.sourcePage,
+      sheetId: sheet.id,
+    }));
   };
 
   const duplicate = (sheetId: string) => {
@@ -83,14 +102,24 @@ export function PlanSheetPanel() {
       <div className="flex items-center justify-between border-b border-gray-100 p-2">
         <div>
           <h3 className="text-sm font-semibold">Plan Sheets</h3>
-          <p className="text-[10px] text-muted-foreground">Cropped views of source PDF pages</p>
+          <p className="text-[10px] text-muted-foreground">
+            Cropped views of source PDF pages
+          </p>
         </div>
+
         <Button
           variant="outline"
           size="icon"
           className="h-7 w-7"
           title="Create a Plan Sheet from the current PDF page"
-          onClick={() => dispatch(beginCrop({ sourcePage: currentPage, sheetId: null }))}
+          onClick={() =>
+            dispatch(
+              beginCrop({
+                sourcePage: currentPage,
+                sheetId: null,
+              }),
+            )
+          }
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>
@@ -99,7 +128,8 @@ export function PlanSheetPanel() {
       <div className="space-y-1.5 p-2">
         {ordered.length === 0 && (
           <div className="rounded-md border border-dashed p-3 text-[11px] leading-4 text-muted-foreground">
-            No Plan Sheets yet. Use Crop Plan to extract a floor from any PDF page. The original PDF remains unchanged.
+            No Plan Sheets yet. Use Crop Plan to extract a floor from any PDF
+            page. The original PDF remains unchanged.
           </div>
         )}
 
@@ -112,7 +142,9 @@ export function PlanSheetPanel() {
               key={sheet.id}
               className={cn(
                 'rounded-md border p-2 transition-colors',
-                isActive ? 'border-primary/40 bg-primary/5' : 'border-gray-200',
+                isActive
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-gray-200',
               )}
             >
               <div className="flex items-center gap-2">
@@ -120,7 +152,9 @@ export function PlanSheetPanel() {
                   {isEditing ? (
                     <Input
                       value={editingName}
-                      onChange={(event) => setEditingName(event.target.value)}
+                      onChange={(event) =>
+                        setEditingName(event.target.value)
+                      }
                       onBlur={commitRename}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') commitRename();
@@ -148,28 +182,59 @@ export function PlanSheetPanel() {
                   size="icon"
                   className="h-6 w-6"
                   title="Show / hide"
-                  onClick={() => dispatch(updatePlanSheet({
-                    id: sheet.id,
-                    changes: { visible: !sheet.visible },
-                  }))}
+                  onClick={() =>
+                    dispatch(
+                      updatePlanSheet({
+                        id: sheet.id,
+                        changes: { visible: !sheet.visible },
+                      }),
+                    )
+                  }
                 >
-                  {sheet.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3 text-muted-foreground" />}
+                  {sheet.visible ? (
+                    <Eye className="h-3 w-3" />
+                  ) : (
+                    <EyeOff className="h-3 w-3 text-muted-foreground" />
+                  )}
                 </Button>
               </div>
 
               <div className="mt-1.5 flex items-center justify-between gap-1">
-                <span className="text-[10px] capitalize text-muted-foreground">{sheet.role}</span>
+                <span className="text-[10px] capitalize text-muted-foreground">
+                  {sheet.role}
+                </span>
 
                 <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-6 w-6" title="Rename" onClick={() => startRename(sheet.id, sheet.name)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="Rename"
+                    onClick={() => startRename(sheet.id, sheet.name)}
+                  >
                     <Pencil className="h-3 w-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit Crop" onClick={() => editCrop(sheet.id)}>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="Edit Crop"
+                    onClick={() => editCrop(sheet.id)}
+                  >
                     <Crop className="h-3 w-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" title="Duplicate" onClick={() => duplicate(sheet.id)}>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="Duplicate"
+                    onClick={() => duplicate(sheet.id)}
+                  >
                     <Copy className="h-3 w-3" />
                   </Button>
+
                   <Button
                     variant="ghost"
                     size="icon"
