@@ -29,6 +29,7 @@ import { SlabTool } from '../tools/SlabTool';
 import { RectSlabTool } from '../tools/RectSlabTool';
 import { PortalFrameTool } from '../tools/PortalFrameTool';
 import { findSnapPoint } from '../snapping/snapEngine';
+import { findGhostSnap } from '@/features/stories/storySnap';
 import { screenToPage } from '@/core/coordinate/coordinateUtils';
 import { pagePointToEngineeringUnit } from '@/core/coordinate/pageCoordinateSystem';
 import { emitCursorCoordinate, emitCursorCoordinateClear } from '@/core/coordinate/coordinateEvents';
@@ -155,7 +156,7 @@ export function useCanvasEvents(
 
     const getSnap = (point: { x: number; y: number }) => {
       const state = store.getState();
-      return findSnapPoint(
+      const own = findSnapPoint(
         point,
         getStructuralElements(),
         pdfScaleRef.current,
@@ -166,6 +167,11 @@ export function useCanvasEvents(
         },
         coordinateSystemRef.current.origin,
       );
+      // Boundary points / endpoints of the other (visible) levels win over the
+      // grid fallback and over this level's own snaps when they are closer.
+      const ghost = findGhostSnap(point, state, pdfScaleRef.current);
+      if (ghost && (!own || own.type === 'grid' || ghost.distance <= own.distance)) return ghost;
+      return own;
     };
 
     const handleMouseDown = (event: MouseEvent) => {

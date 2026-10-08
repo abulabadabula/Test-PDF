@@ -8,6 +8,7 @@ import { layerSlice } from './slices/layerSlice';
 import { uiSlice } from './slices/uiSlice';
 import { aiSlice } from './slices/aiSlice';
 import { pageCoordinateSlice } from './slices/pageCoordinateSlice';
+import { storySlice } from './slices/storySlice';
 import { propertiesSlice } from './slices/propertiesSlice';
 import { loadsSlice } from './slices/loadSlice';
 import loadAssignmentsReducer from './slices/loadAssignmentsSlice';
@@ -18,6 +19,7 @@ export const store = configureStore({
     drawing: drawingSlice.reducer,
     pageCoordinate: pageCoordinateSlice.reducer,
     layer: layerSlice.reducer,
+    story: storySlice.reducer,
     ui: uiSlice.reducer,
     ai: aiSlice.reducer,
     properties: propertiesSlice.reducer,

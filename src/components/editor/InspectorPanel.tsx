@@ -3,6 +3,7 @@ import { useAppSelector } from '@/app/store/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TreeViewPanel } from '@/features/tree-view/TreeViewPanel';
 import { LayerPanel } from '@/features/layers/LayerPanel';
+import { StoryPanel } from '@/features/stories/StoryPanel';
 import { PropertiesLibraryTree } from '@/components/properties/PropertiesLibraryTree';
 import { Layers, TreePine, Sliders } from 'lucide-react';
 import { PropertyEditorDialog } from '@/features/tree-view/PropertyEditorDialog';
@@ -175,6 +176,7 @@ export function InspectorPanel() {
         </TabsContent>
 
         <TabsContent value="tree" className="flex-1 overflow-y-auto mt-0 p-2">
+          <StoryPanel />
           <LayerPanel />
         </TabsContent>
       </Tabs>

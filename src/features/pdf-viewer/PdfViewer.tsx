@@ -8,6 +8,8 @@ import { AnnotationCanvas } from '@/features/drawing/AnnotationCanvas';
 import { DimensionOverlay } from '@/features/layers/DimensionOverlay';
 import { LegendPanel } from '@/features/layers/LegendPanel';
 import { usePdfFit } from './usePdfFit';
+import { StoryOverlayStack } from '@/features/stories/StoryOverlayStack';
+import { StoryGhostCanvas } from '@/features/stories/StoryGhostCanvas';
 
 export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage: () => void }, {}>((_, ref) => {
   const dispatch = useAppDispatch();
@@ -135,6 +137,10 @@ export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage:
             {dimPdfBackground && (
               <div className="absolute inset-0 bg-white/60 pointer-events-none z-[5]" />
             )}
+
+            {/* Other levels (PDF pages) as transparent tinted overlays + their elements */}
+            {document && <StoryOverlayStack pdfDocument={document} />}
+            <StoryGhostCanvas />
 
             <AnnotationCanvas />
             <DimensionOverlay />
