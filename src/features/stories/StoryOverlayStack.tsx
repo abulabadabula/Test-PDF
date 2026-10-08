@@ -338,6 +338,15 @@ function StoryOverlayCanvas({
         matrix[3] * crop.y +
         matrix[5];
 
+      // The destination canvas is itself a cropped view of the base Plan
+      // Sheet, so its (0,0) corresponds to baseSheet.crop.x/y in source-page
+      // coordinates.
+      const baseViewportOriginX =
+        baseSheet.crop.x;
+
+      const baseViewportOriginY =
+        baseSheet.crop.y;
+
       context.setTransform(
         matrix[0] *
           pixelsToBasePage,
@@ -347,9 +356,9 @@ function StoryOverlayCanvas({
           pixelsToBasePage,
         matrix[3] *
           pixelsToBasePage,
-        baseCropX *
+        (baseCropX - baseViewportOriginX) *
           deviceScale,
-        baseCropY *
+        (baseCropY - baseViewportOriginY) *
           deviceScale,
       );
 
