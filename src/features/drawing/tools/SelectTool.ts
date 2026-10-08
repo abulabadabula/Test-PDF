@@ -190,8 +190,18 @@ export class SelectTool extends BaseTool {
     const maxY = Math.max(start.y, end.y);
 
     const state = ctx.getState();
+    const activeSheet = state.planSheet.sheets.find(
+      (sheet) => sheet.id === state.planSheet.activeSheetId,
+    );
+
+    const sourcePage = activeSheet?.sourcePage ?? state.pdf.currentPage;
+    const sheetId = activeSheet?.id ?? null;
+
     const ids = state.drawing.shapes
-      .filter((shape) => shape.pageIndex === state.pdf.currentPage)
+      .filter((shape) =>
+        shape.pageIndex === sourcePage &&
+        (!sheetId || !shape.sheetId || shape.sheetId === sheetId),
+      )
       /*
        * IMPORTANT:
        *

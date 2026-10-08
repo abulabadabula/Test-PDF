@@ -15,6 +15,8 @@ interface BaseShape {
   type: Exclude<ToolType, StructuralElementType | 'select' | 'eraser'>;
   layerId: string;
   pageIndex: number;
+  /** Virtual Plan Sheet that owns this shape; optional for legacy data. */
+  sheetId?: string;
   color: string;
   strokeWidth: number;
   opacity: number;
@@ -436,6 +438,20 @@ export const drawingSlice = createSlice({
       reconcileStructuralTopology(s.shapes as unknown as Shape[]);
     },
 
+    assignShapesToSheet: (
+      s,
+      a: PayloadAction<{ sourcePage: number; sheetId: string; onlyUnassigned?: boolean }>,
+    ) => {
+      const onlyUnassigned = a.payload.onlyUnassigned !== false;
+
+      for (const shape of s.shapes) {
+        if (shape.pageIndex !== a.payload.sourcePage) continue;
+        if (onlyUnassigned && shape.sheetId) continue;
+        shape.sheetId = a.payload.sheetId;
+        shape.updatedAt = new Date().toISOString();
+      }
+    },
+
     _setHistoryState: (s, a: PayloadAction<'idle' | 'active'>) => {
       s.historyTransaction = a.payload;
     },
@@ -547,6 +563,7 @@ export const {
   undo,
   redo,
   importShapes,
+  assignShapesToSheet,
   _setHistoryState,
 } = drawingSlice.actions;
 
@@ -556,6 +573,32 @@ export const selectSelectedShapeIds = (s: RootState) => s.drawing.selectedShapeI
 
 export const selectShapesByPage = (s: RootState, pageIndex: number) =>
   s.drawing.shapes.filter((x) => x.pageIndex === pageIndex);
+
+export const selectShapesBySheet = (
+  s: RootState,
+  sheetId: string | null,
+  sourcePage: number,
+) => {
+  if (!sheetId) {
+    return s.drawing.shapes.filter((x) => x.pageIndex === sourcePage);
+  }
+
+  return s.drawing.shapes.filter(
+    (x) => x.pageIndex === sourcePage && (!x.sheetId || x.sheetId === sheetId),
+  );
+};
+
+export const selectShapesForActivePlanSheet = (s: RootState) => {
+  const sourcePage =
+    s.planSheet.sheets.find((sheet) => sheet.id === s.planSheet.activeSheetId)?.sourcePage ??
+    s.pdf.currentPage;
+
+  return selectShapesBySheet(
+    s,
+    s.planSheet.activeSheetId,
+    sourcePage,
+  );
+};
 
 export const selectShapesByLayer = (s: RootState, layerId: string) =>
   s.drawing.shapes.filter((x) => x.layerId === layerId);

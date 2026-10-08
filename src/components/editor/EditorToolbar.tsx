@@ -1,9 +1,10 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { setActiveTool, ToolType } from '@/app/store/slices/drawingSlice';
-import { MousePointer2, Columns3, Minus, BrickWall, Layers3, Warehouse, Ruler, Magnet, 
+import { MousePointer2, Columns3, Minus, BrickWall, Layers3, Warehouse, Ruler, Magnet, Crop, 
 } from 'lucide-react';
 import { toggleSnap, toggleSnapType } from '@/app/store/slices/uiSlice';
+import { beginCrop, cancelCrop, selectCropMode } from '@/app/store/slices/planSheetSlice';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -23,6 +24,8 @@ export function EditorToolbar() {
   const active = useAppSelector((s) => s.drawing.activeTool);
   const snap = useAppSelector((s) => s.ui.snapEnabled);
   const types = useAppSelector((s) => s.ui.snapTypes);
+  const currentPage = useAppSelector((s) => s.pdf.currentPage);
+  const cropMode = useAppSelector(selectCropMode);
 
   const snapButtons: [keyof typeof types, string][] = [
     ['grid', 'Grid'],
@@ -56,6 +59,28 @@ export function EditorToolbar() {
       ))}
 
       <div className="ml-2 pl-2 border-l flex items-center gap-1">
+        <button
+          onClick={() =>
+            dispatch(
+              cropMode
+                ? cancelCrop()
+                : beginCrop({ sourcePage: currentPage, sheetId: null }),
+            )
+          }
+          className={cn(
+            'h-8 px-2 rounded flex items-center gap-1 text-xs',
+            cropMode
+              ? 'bg-editor-active text-accent'
+              : 'text-muted-foreground hover:bg-editor-hover',
+          )}
+          title="Crop a PDF page into a virtual Plan Sheet"
+        >
+          <Crop className="w-3.5 h-3.5" />
+          Crop Plan
+        </button>
+      </div>
+
+      <div className="ml-1 pl-2 border-l flex items-center gap-1">
         <button
           onClick={() => dispatch(toggleSnap())}
           className={cn(

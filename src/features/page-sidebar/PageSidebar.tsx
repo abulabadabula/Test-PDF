@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/store/hooks';
 import { setCurrentPage } from '@/app/store/slices/pdfSlice';
+import { selectCoordinateSystem } from '@/app/store/slices/pageCoordinateSlice';
 import { setScaleRatio } from '@/app/store/slices/drawingSlice';
-import { setPageScale, setPageUnit } from '@/app/store/slices/pageCoordinateSlice';
+import { setPageScale, setPageUnit, setSheetScale, setSheetUnit } from '@/app/store/slices/pageCoordinateSlice';
+import { activatePlanSheetForPage, selectActivePlanSheet } from '@/app/store/slices/planSheetSlice';
 import { setCurrentDrawingScale } from '@/core/coordinate/engineeringScale';
 import { usePdfDocument } from '@/features/pdf-viewer/usePdfDocument';
 import { Button } from '@/components/ui/button';
@@ -19,28 +21,30 @@ import { SelectedObjectProperties,
 export function PageSidebar() {
   const dispatch = useAppDispatch();
   const { fileName, currentPage, totalPages, scale: displayZoom } = useAppSelector((s) => s.pdf);
+  const activePlanSheet = useAppSelector(selectActivePlanSheet);
 
   // --------------------------------------------------------------------------
   // DRAWING STATE
   // --------------------------------------------------------------------------
 
-  const {
-    scaleNumerator,
-    scaleDenominator,
-    scaleUnit,
-
-    activeTool,
-    selectedShapeIds,
-  } = useAppSelector(
+  const { activeTool, selectedShapeIds } = useAppSelector(
     (state) => ({
-      scaleNumerator: state.drawing.scaleNumerator,
-      scaleDenominator: state.drawing.scaleDenominator,
-      scaleUnit: state.drawing.scaleUnit,
-
       activeTool: state.drawing.activeTool,
       selectedShapeIds: state.drawing.selectedShapeIds,
     }),
   );
+
+  const coordinateSystem = useAppSelector((state) =>
+    selectCoordinateSystem(
+      state,
+      currentPage,
+      activePlanSheet?.id ?? null,
+    ),
+  );
+
+  const scaleNumerator = coordinateSystem.scaleNumerator;
+  const scaleDenominator = coordinateSystem.scaleDenominator;
+  const scaleUnit = coordinateSystem.unit;
 
   // --------------------------------------------------------------------------
   // PDF DOCUMENT
@@ -98,8 +102,20 @@ export function PageSidebar() {
         pageIndex: currentPage,
         unit: scaleUnitVal,
       }));
+
+      if (activePlanSheet?.id) {
+        dispatch(setSheetScale({
+          sheetId: activePlanSheet.id,
+          numerator: num,
+          denominator: den,
+        }));
+        dispatch(setSheetUnit({
+          sheetId: activePlanSheet.id,
+          unit: scaleUnitVal,
+        }));
+      }
     }
-  }, [scaleNum, scaleDen, scaleUnitVal, currentPage, dispatch]);
+  }, [scaleNum, scaleDen, scaleUnitVal, currentPage, dispatch, activePlanSheet?.id]);
 
   // --------------------------------------------------------------------------
   // PAGE LIST
@@ -369,13 +385,10 @@ export function PageSidebar() {
                     return (
                       <button
                         key={page.pageNumber}
-                        onClick={() =>
-                          dispatch(
-                            setCurrentPage(
-                              page.pageNumber,
-                            ),
-                          )
-                        }
+                        onClick={() => {
+                          dispatch(setCurrentPage(page.pageNumber));
+                          dispatch(activatePlanSheetForPage(page.pageNumber));
+                        }}
                         className={[
                           'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition-colors',
 

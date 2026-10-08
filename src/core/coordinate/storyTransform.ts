@@ -1,15 +1,8 @@
 // src/core/coordinate/storyTransform.ts
 //
-// Maps points between PDF pages ("stories") through the shared engineering
-// frame (mm). Every page already has its own origin + drawing scale
-// (PageCoordinateSystem); a story may additionally carry a small adjustment
-// (dx, dy, rotation) so imperfectly drawn levels can be lined up by eye.
-//
-//   page point --pagePointToEngineeringMm--> mm --adjust--> COMMON FRAME
-//
-// All of these maps are affine, so a whole page can be mapped onto the base
-// page with ONE 2D matrix (see storyMatrix) - used both for drawing the PDF
-// overlay bitmap and for cheaply transforming vertices.
+// Maps plan-sheet points through their engineering coordinate systems into a
+// shared frame. A Story now references a Plan Sheet; pageIndex remains only as
+// legacy PDF source metadata.
 
 import {
   DEFAULT_PAGE_COORDINATE_SYSTEM,
@@ -17,80 +10,194 @@ import {
   pagePointToEngineeringMm,
   type PageCoordinateSystem,
 } from './pageCoordinateSystem';
-import type { StoryAdjust } from '@/app/store/slices/storySlice';
+import type { Story, StoryAdjust } from '@/app/store/slices/storySlice';
+import type { PlanSheet } from '@/features/plan-sheets/planSheetTypes';
 
-export interface XY { x: number; y: number }
+export interface XY {
+  x: number;
+  y: number;
+}
 
 export interface StoryFrame {
   cs: PageCoordinateSystem;
   adj: StoryAdjust;
 }
 
-/** [a, b, c, d, e, f]  =>  x' = a*x + c*y + e,  y' = b*x + d*y + f */
-export type Matrix6 = readonly [number, number, number, number, number, number];
+export type Matrix6 = readonly [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
 
-export const ZERO_ADJ: StoryAdjust = { dxMm: 0, dyMm: 0, rotationDeg: 0 };
+export const ZERO_ADJ: StoryAdjust = {
+  dxMm: 0,
+  dyMm: 0,
+  rotationDeg: 0,
+};
 
 export function frameOf(
   pages: Record<number, PageCoordinateSystem>,
   pageIndex: number,
   adj: StoryAdjust | undefined,
 ): StoryFrame {
-  return { cs: pages[pageIndex] ?? DEFAULT_PAGE_COORDINATE_SYSTEM, adj: adj ?? ZERO_ADJ };
+  return {
+    cs: pages[pageIndex] ?? DEFAULT_PAGE_COORDINATE_SYSTEM,
+    adj: adj ?? ZERO_ADJ,
+  };
 }
 
-function applyAdj(p: XY, adj: StoryAdjust): XY {
+export function sourcePageForStory(
+  story: Story,
+  planSheets: PlanSheet[],
+): number {
+  return (
+    planSheets.find((sheet) => sheet.id === story.sheetId)?.sourcePage ??
+    story.pageIndex ??
+    1
+  );
+}
+
+export function planSheetForStory(
+  story: Story,
+  planSheets: PlanSheet[],
+): PlanSheet | null {
+  return planSheets.find((sheet) => sheet.id === story.sheetId) ?? null;
+}
+
+export function frameForStory(
+  pageSystems: Record<number, PageCoordinateSystem>,
+  sheetSystems: Record<string, PageCoordinateSystem>,
+  story: Story,
+  planSheets: PlanSheet[],
+): StoryFrame {
+  const sheet = planSheetForStory(story, planSheets);
+  const sourcePage = sheet?.sourcePage ?? story.pageIndex ?? 1;
+  const cs =
+    sheet && sheetSystems[sheet.id]
+      ? sheetSystems[sheet.id]
+      : pageSystems[sourcePage] ?? DEFAULT_PAGE_COORDINATE_SYSTEM;
+
+  return {
+    cs,
+    adj: story.adjust ?? ZERO_ADJ,
+  };
+}
+
+function applyAdj(point: XY, adj: StoryAdjust): XY {
   const r = (adj.rotationDeg * Math.PI) / 180;
   const c = Math.cos(r);
   const s = Math.sin(r);
-  return { x: p.x * c - p.y * s + adj.dxMm, y: p.x * s + p.y * c + adj.dyMm };
+
+  return {
+    x: point.x * c - point.y * s + adj.dxMm,
+    y: point.x * s + point.y * c + adj.dyMm,
+  };
 }
 
-function invAdj(p: XY, adj: StoryAdjust): XY {
+function invAdj(point: XY, adj: StoryAdjust): XY {
   const r = (adj.rotationDeg * Math.PI) / 180;
   const c = Math.cos(r);
   const s = Math.sin(r);
-  const x = p.x - adj.dxMm;
-  const y = p.y - adj.dyMm;
-  return { x: x * c + y * s, y: -x * s + y * c };
+  const x = point.x - adj.dxMm;
+  const y = point.y - adj.dyMm;
+
+  return {
+    x: x * c + y * s,
+    y: -x * s + y * c,
+  };
 }
 
-/** Page point of a story -> common engineering frame (mm). */
-export function pageToFrame(p: XY, f: StoryFrame): XY {
-  return applyAdj(pagePointToEngineeringMm(p, f.cs), f.adj);
+export function pageToFrame(
+  point: XY,
+  frame: StoryFrame,
+): XY {
+  return applyAdj(
+    pagePointToEngineeringMm(point, frame.cs),
+    frame.adj,
+  );
 }
 
-/** Common engineering frame (mm) -> page point of a story. */
-export function frameToPage(m: XY, f: StoryFrame): XY {
-  return engineeringMmToPagePoint(invAdj(m, f.adj), f.cs);
+export function frameToPage(
+  mm: XY,
+  frame: StoryFrame,
+): XY {
+  return engineeringMmToPagePoint(
+    invAdj(mm, frame.adj),
+    frame.cs,
+  );
 }
 
-export function storyPointToBasePage(p: XY, from: StoryFrame, base: StoryFrame): XY {
-  return frameToPage(pageToFrame(p, from), base);
+export function storyPointToBasePage(
+  point: XY,
+  from: StoryFrame,
+  base: StoryFrame,
+): XY {
+  return frameToPage(
+    pageToFrame(point, from),
+    base,
+  );
 }
 
-export function basePageToStoryPoint(p: XY, from: StoryFrame, base: StoryFrame): XY {
-  return frameToPage(pageToFrame(p, base), from);
+export function basePageToStoryPoint(
+  point: XY,
+  from: StoryFrame,
+  base: StoryFrame,
+): XY {
+  return frameToPage(
+    pageToFrame(point, base),
+    from,
+  );
 }
 
-/** Affine matrix taking page points of `from` to page points of `base`. */
-export function storyMatrix(from: StoryFrame, base: StoryFrame): Matrix6 {
-  const o = storyPointToBasePage({ x: 0, y: 0 }, from, base);
-  const px = storyPointToBasePage({ x: 1, y: 0 }, from, base);
-  const py = storyPointToBasePage({ x: 0, y: 1 }, from, base);
-  return [px.x - o.x, px.y - o.y, py.x - o.x, py.y - o.y, o.x, o.y];
+export function storyMatrix(
+  from: StoryFrame,
+  base: StoryFrame,
+): Matrix6 {
+  const origin = storyPointToBasePage(
+    { x: 0, y: 0 },
+    from,
+    base,
+  );
+
+  const px = storyPointToBasePage(
+    { x: 1, y: 0 },
+    from,
+    base,
+  );
+
+  const py = storyPointToBasePage(
+    { x: 0, y: 1 },
+    from,
+    base,
+  );
+
+  return [
+    px.x - origin.x,
+    px.y - origin.y,
+    py.x - origin.x,
+    py.y - origin.y,
+    origin.x,
+    origin.y,
+  ];
 }
 
-export function applyMatrix(m: Matrix6, p: XY): XY {
-  return { x: m[0] * p.x + m[2] * p.y + m[4], y: m[1] * p.x + m[3] * p.y + m[5] };
+export function applyMatrix(
+  matrix: Matrix6,
+  point: XY,
+): XY {
+  return {
+    x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
+    y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
+  };
 }
 
-/** Uniform scale factor of a (similarity) matrix. */
-export function matrixScale(m: Matrix6): number {
-  return Math.hypot(m[0], m[1]);
+export function matrixScale(matrix: Matrix6): number {
+  return Math.hypot(matrix[0], matrix[1]);
 }
 
-/** Rotation (radians) of a (similarity) matrix. */
-export function matrixRotation(m: Matrix6): number {
-  return Math.atan2(m[1], m[0]);
+export function matrixRotation(matrix: Matrix6): number {
+  return Math.atan2(matrix[1], matrix[0]);
 }

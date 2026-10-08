@@ -10,6 +10,7 @@ import { LegendPanel } from '@/features/layers/LegendPanel';
 import { usePdfFit } from './usePdfFit';
 import { StoryOverlayStack } from '@/features/stories/StoryOverlayStack';
 import { StoryGhostCanvas } from '@/features/stories/StoryGhostCanvas';
+import { CropOverlay } from '@/features/plan-sheets/CropOverlay';
 
 export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage: () => void }, {}>((_, ref) => {
   const dispatch = useAppDispatch();
@@ -131,7 +132,9 @@ export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage:
           <div className="relative shadow-sm bg-white">
             <PdfCanvas document={document} />
 
-            {/* --- 新增：PDF 背景淡显遮罩层 --- */}
+            <CropOverlay />
+
+            {/* --- 新增：PDF 背景淡显遮罩层 --- */
             {/* z-[5] 确保它在 PDF (z-0) 之上，但在 AnnotationCanvas (z-10) 之下 */}
             {/* pointer-events-none 确保它不会阻挡鼠标与下方标注 Canvas 的交互 */}
             {dimPdfBackground && (
