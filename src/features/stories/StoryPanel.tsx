@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   Anchor,
+  Move,
 } from 'lucide-react';
 
 import { store } from '@/app/store';
@@ -27,6 +28,8 @@ import {
 import {
   initStoriesFromPlanSheets,
   removeStory,
+  resetStoryAdjust,
+  setAlignStory,
   setAllOverlays,
   setGhostSnap,
   setLinkToleranceMm,
@@ -111,6 +114,10 @@ function StoryRow({
   unscaled: boolean;
 }) {
   const dispatch = useAppDispatch();
+
+  const aligning = useAppSelector(
+    (state) => state.story.alignStoryId === story.id,
+  );
 
   const patch = (
     changes: Partial<Omit<Story, 'id' | 'adjust'>>,
@@ -207,7 +214,7 @@ function StoryRow({
 
             <Slider
               className="flex-1"
-              min={5}
+              min={0}
               max={100}
               step={5}
               value={[
@@ -221,6 +228,18 @@ function StoryRow({
             <span className="w-8 text-right text-[10px] text-gray-500">
               {Math.round(story.overlayOpacity * 100)}%
             </span>
+
+            <Button
+              variant={aligning ? 'default' : 'outline'}
+              size="icon"
+              className="h-6 w-6"
+              title="Drag this plan on the canvas to align it with the base plan"
+              onClick={() =>
+                dispatch(setAlignStory(aligning ? null : story.id))
+              }
+            >
+              <Move className="h-3 w-3" />
+            </Button>
           </div>
 
           <label className="flex items-center gap-2 text-[10px] text-gray-500">
@@ -249,7 +268,7 @@ function StoryRow({
         {!isBase && (
           <details className="text-[10px] text-gray-500">
             <summary className="cursor-pointer select-none">
-              Align
+              Align (numeric)
             </summary>
 
             <div className="mt-1 flex flex-wrap gap-2">
@@ -279,6 +298,15 @@ function StoryRow({
                   adjust({ rotationDeg: value })
                 }
               />
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => dispatch(resetStoryAdjust(story.id))}
+              >
+                Reset
+              </Button>
             </div>
           </details>
         )}

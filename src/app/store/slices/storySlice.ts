@@ -33,6 +33,8 @@ export interface StoryState {
   pullRadiusMm: number;
   showLinks: boolean;
   ghostSnap: boolean;
+  /** Story whose underlay is currently being dragged into alignment. */
+  alignStoryId: string | null;
 }
 
 const TINTS = [
@@ -58,6 +60,7 @@ function createStory(
   name: string,
   order: number,
   pageIndex?: number,
+  overlayVisible = false,
 ): Story {
   return {
     id: nanoid(),
@@ -65,7 +68,7 @@ function createStory(
     pageIndex,
     name,
     elevationMm: order * DEFAULT_STORY_HEIGHT_MM,
-    overlayVisible: false,
+    overlayVisible,
     overlayOpacity: 0.4,
     tint: TINTS[order % TINTS.length],
     showGhostElements: true,
@@ -79,6 +82,7 @@ const initialState: StoryState = {
   pullRadiusMm: 500,
   showLinks: true,
   ghostSnap: true,
+  alignStoryId: null,
 };
 
 export const storySlice = createSlice({
@@ -149,20 +153,27 @@ export const storySlice = createSlice({
         sheetId: string;
         pageIndex?: number;
         name?: string;
+        /** Show the new level as an underlay straight away. */
+        overlayVisible?: boolean;
+        /** Initial translation / rotation of the underlay. */
+        adjust?: StoryAdjust;
       }>,
     ) => {
       if (state.stories.some((story) => story.sheetId === action.payload.sheetId)) {
         return;
       }
 
-      state.stories.push(
-        createStory(
-          action.payload.sheetId,
-          action.payload.name ?? action.payload.sheetId,
-          state.stories.length,
-          action.payload.pageIndex,
-        ),
+      const story = createStory(
+        action.payload.sheetId,
+        action.payload.name ?? action.payload.sheetId,
+        state.stories.length,
+        action.payload.pageIndex,
+        action.payload.overlayVisible ?? false,
       );
+
+      if (action.payload.adjust) story.adjust = { ...action.payload.adjust };
+
+      state.stories.push(story);
 
       state.stories.sort((a, b) => a.elevationMm - b.elevationMm);
     },
@@ -189,8 +200,22 @@ export const storySlice = createSlice({
       if (story) Object.assign(story.adjust, action.payload.changes);
     },
 
+    resetStoryAdjust: (state, action: PayloadAction<string>) => {
+      const story = state.stories.find((item) => item.id === action.payload);
+      if (story) story.adjust = { ...ZERO_ADJUST };
+    },
+
+    /** Enter / leave interactive drag-to-align mode for a story's underlay. */
+    setAlignStory: (state, action: PayloadAction<string | null>) => {
+      state.alignStoryId = action.payload;
+
+      const story = state.stories.find((item) => item.id === action.payload);
+      if (story) story.overlayVisible = true;
+    },
+
     removeStory: (state, action: PayloadAction<string>) => {
       state.stories = state.stories.filter((story) => story.id !== action.payload);
+      if (state.alignStoryId === action.payload) state.alignStoryId = null;
     },
 
     setAllOverlays: (state, action: PayloadAction<boolean>) => {
@@ -227,6 +252,8 @@ export const {
   addStory,
   updateStory,
   updateStoryAdjust,
+  resetStoryAdjust,
+  setAlignStory,
   removeStory,
   setAllOverlays,
   setLinkToleranceMm,

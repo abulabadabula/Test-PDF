@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useAppSelector } from '@/app/store/hooks';
 import {
   applyMatrix,
+  baseFrameForSheet,
   frameForStory,
   matrixRotation,
   matrixScale,
@@ -98,22 +99,24 @@ export function StoryGhostCanvas() {
         (story) => story.sheetId === activeSheet.id,
       );
 
-      if (!baseStory) return;
-
-      const baseFrame = frameForStory(
+      // A base Story is optional: reference-only sheets can be the base view
+      // too (they just have no modelled nodes to link against).
+      const baseFrame = baseFrameForSheet(
         pageSystems,
         sheetSystems,
-        baseStory,
-        planSheets,
+        activeSheet,
+        stories,
       );
 
-      const baseNodes = nodesOfStory(
-        shapes,
-        baseStory,
-        pageSystems,
-        sheetSystems,
-        planSheets,
-      );
+      const baseNodes = baseStory
+        ? nodesOfStory(
+            shapes,
+            baseStory,
+            pageSystems,
+            sheetSystems,
+            planSheets,
+          )
+        : [];
 
       const px =
         1 / Math.max(displayScale, 0.0001);

@@ -11,6 +11,7 @@ import { usePdfFit } from './usePdfFit';
 import { StoryOverlayStack } from '@/features/stories/StoryOverlayStack';
 import { StoryGhostCanvas } from '@/features/stories/StoryGhostCanvas';
 import { CropOverlay } from '@/features/plan-sheets/CropOverlay';
+import { StoryAlignOverlay } from '@/features/stories/StoryAlignOverlay';
 
 export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage: () => void }, {}>((_, ref) => {
   const dispatch = useAppDispatch();
@@ -147,6 +148,9 @@ export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage:
 
             <AnnotationCanvas />
             <DimensionOverlay />
+
+            {/* Drag-to-align layer for the underlay being positioned */}
+            <StoryAlignOverlay />
           </div>
         </div>
         <LegendPanel />

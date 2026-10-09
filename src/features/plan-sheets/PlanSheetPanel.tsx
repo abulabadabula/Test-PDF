@@ -16,6 +16,7 @@ import { setCurrentPage } from '@/app/store/slices/pdfSlice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { UnderlayControls } from './UnderlayControls';
 import { toast } from 'sonner';
 
 export function PlanSheetPanel() {
@@ -103,7 +104,8 @@ export function PlanSheetPanel() {
         <div>
           <h3 className="text-sm font-semibold">Plan Sheets</h3>
           <p className="text-[10px] text-muted-foreground">
-            Cropped views of source PDF pages
+            Cropped views of source PDF pages. Select one as the base, then
+            underlay the others to align storeys.
           </p>
         </div>
 
@@ -246,6 +248,9 @@ export function PlanSheetPanel() {
                   </Button>
                 </div>
               </div>
+
+              {/* Underlay this sheet beneath the active (base) sheet */}
+              {!isActive && active && <UnderlayControls sheet={sheet} />}
             </div>
           );
         })}

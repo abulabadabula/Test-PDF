@@ -201,3 +201,63 @@ export function matrixScale(matrix: Matrix6): number {
 export function matrixRotation(matrix: Matrix6): number {
   return Math.atan2(matrix[1], matrix[0]);
 }
+
+
+/**
+ * Frame of a Plan Sheet that may not have a Story yet (e.g. a reference-only
+ * sheet used as the base view). Falls back to the sheet / page coordinate
+ * system with no adjustment.
+ */
+export function frameForSheet(
+  pageSystems: Record<number, PageCoordinateSystem>,
+  sheetSystems: Record<string, PageCoordinateSystem>,
+  sheet: PlanSheet,
+  adj?: StoryAdjust,
+): StoryFrame {
+  return {
+    cs:
+      sheetSystems[sheet.id] ??
+      pageSystems[sheet.sourcePage] ??
+      DEFAULT_PAGE_COORDINATE_SYSTEM,
+    adj: adj ?? ZERO_ADJ,
+  };
+}
+
+/**
+ * Frame used as the common reference when viewing `baseSheet`. Uses the
+ * base Story's adjustment when the sheet has a Story, otherwise none.
+ */
+export function baseFrameForSheet(
+  pageSystems: Record<number, PageCoordinateSystem>,
+  sheetSystems: Record<string, PageCoordinateSystem>,
+  baseSheet: PlanSheet,
+  stories: Story[],
+): StoryFrame {
+  const story = stories.find((item) => item.sheetId === baseSheet.id);
+  return frameForSheet(pageSystems, sheetSystems, baseSheet, story?.adjust);
+}
+
+/**
+ * Solve the translation (dxMm, dyMm) that places `anchor` (a point in the
+ * underlay's own source-page coordinates) exactly on `target` (a point in the
+ * base source-page coordinates). The underlay's rotation is preserved.
+ */
+export function adjustToPlace(
+  anchor: XY,
+  target: XY,
+  from: StoryFrame,
+  base: StoryFrame,
+): StoryAdjust {
+  const m = pagePointToEngineeringMm(anchor, from.cs);
+  const goal = pageToFrame(target, base);
+
+  const r = (from.adj.rotationDeg * Math.PI) / 180;
+  const c = Math.cos(r);
+  const s = Math.sin(r);
+
+  return {
+    dxMm: goal.x - (m.x * c - m.y * s),
+    dyMm: goal.y - (m.x * s + m.y * c),
+    rotationDeg: from.adj.rotationDeg,
+  };
+}

@@ -6,6 +6,7 @@ import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { useAppSelector } from '@/app/store/hooks';
 import type { Story } from '@/app/store/slices/storySlice';
 import {
+  baseFrameForSheet,
   frameForStory,
   storyMatrix,
   sourcePageForStory,
@@ -82,12 +83,10 @@ function tintToAlpha(
 function StoryOverlayCanvas({
   pdfDocument,
   story,
-  baseStory,
   zIndex,
 }: {
   pdfDocument: PDFDocumentProxy;
   story: Story;
-  baseStory: Story | undefined;
   zIndex: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -111,6 +110,10 @@ function StoryOverlayCanvas({
     selectActivePlanSheet,
   );
 
+  const stories = useAppSelector(
+    (state) => state.story.stories,
+  );
+
   const from = useMemo(
     () =>
       frameForStory(
@@ -127,21 +130,23 @@ function StoryOverlayCanvas({
     ],
   );
 
+  // The base frame no longer requires the active Plan Sheet to have a Story,
+  // so reference-only sheets can also be used as the base view.
   const base = useMemo(
     () =>
-      baseStory
-        ? frameForStory(
+      baseSheet
+        ? baseFrameForSheet(
             pageSystems,
             sheetSystems,
-            baseStory,
-            planSheets,
+            baseSheet,
+            stories,
           )
         : null,
     [
       pageSystems,
       sheetSystems,
-      baseStory,
-      planSheets,
+      baseSheet,
+      stories,
     ],
   );
 
@@ -362,14 +367,10 @@ function StoryOverlayCanvas({
           deviceScale,
       );
 
-      context.globalAlpha =
-        Math.max(
-          0,
-          Math.min(
-            1,
-            story.overlayOpacity,
-          ),
-        );
+      // Opacity is applied once, through the canvas' CSS opacity below, so the
+      // slider maps linearly to what the user sees (it used to be applied
+      // twice, i.e. squared) and changing it never needs a re-render.
+      context.globalAlpha = 1;
 
       context.drawImage(
         bitmap.canvas,
@@ -411,7 +412,6 @@ function StoryOverlayCanvas({
     pdfDocument,
     docKey,
     story,
-    baseStory,
     baseSheet,
     from,
     base,
@@ -425,7 +425,10 @@ function StoryOverlayCanvas({
       ref={ref}
       className="absolute inset-0 h-full w-full pointer-events-none"
       style={{
-        opacity: story.overlayOpacity,
+        opacity: Math.max(
+          0,
+          Math.min(1, story.overlayOpacity),
+        ),
         zIndex,
         mixBlendMode: 'multiply',
       }}
@@ -452,12 +455,6 @@ export function StoryOverlayStack({
       selectPlanSheets,
     );
 
-  const baseStory = stories.find(
-    (story) =>
-      story.sheetId ===
-      activeSheet?.id,
-  );
-
   const visible = stories
     .filter(
       (story) =>
@@ -483,7 +480,6 @@ export function StoryOverlayStack({
           key={story.id}
           pdfDocument={pdfDocument}
           story={story}
-          baseStory={baseStory}
           zIndex={6 + index}
         />
       ))}
