@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { selectShape, deleteShape, updateShape, copySelected, pasteClipboard } from '@/app/store/slices/drawingSlice';
+import { selectShape, deleteShape, copySelected, pasteClipboard } from '@/app/store/slices/drawingSlice';
 import { ChevronRight, ChevronDown, Folder, Square, Columns3, Minus, BrickWall, Layers3 } from 'lucide-react';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { TreeNodeData } from './types';
 import { StructuralPropertyDialog } from '@/features/drawing/StructuralPropertyDialog';
 import { AssignLoadsDialog } from '@/components/editor/AssignLoadsDialog';
@@ -12,7 +12,6 @@ const icons: any = { column: Columns3, beam: Minus, wall: BrickWall, slab: Layer
 
 export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: TreeNodeData; depth: number; focusedId: string | null; onExpandToggle: (id: string) => void }) {
   const dispatch = useAppDispatch();
-  const layers = useAppSelector((s) => s.layer.layers);
   const selectedShapeIds = useAppSelector((s) => s.drawing.selectedShapeIds);
   const [selected, setSelected] = useState<StructuralElement | null>(null);
   const [assigningLoads, setAssigningLoads] = useState<StructuralElement | null>(null);
@@ -43,10 +42,6 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
       dispatch(copySelected());
       dispatch(pasteClipboard());
     }
-  };
-
-  const handleMoveToLayer = (layerId: string) => {
-    dispatch(updateShape({ id: node.id, changes: { layerId } }));
   };
 
   const nodeContent = (
@@ -91,13 +86,6 @@ export function TreeNode({ node, depth, focusedId, onExpandToggle }: { node: Tre
             Assign Loads
           </ContextMenuItem>
           <ContextMenuItem onClick={handleCopy}>Copy</ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>Move to Layer</ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {layers.map((l) => <ContextMenuItem key={l.id} disabled={l.id === node.shapeData?.layerId} onClick={() => handleMoveToLayer(l.id)}>{l.name}</ContextMenuItem>)}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={() => dispatch(deleteShape(node.id))} className="text-red-600">Delete</ContextMenuItem>
         </ContextMenuContent>

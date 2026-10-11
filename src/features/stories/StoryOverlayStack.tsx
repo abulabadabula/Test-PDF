@@ -463,8 +463,8 @@ export function StoryOverlayStack({
           activeSheet?.id &&
         planSheets.some(
           (sheet) =>
-            sheet.id ===
-            story.sheetId,
+            sheet.id === story.sheetId &&
+            sheet.visible,
         ),
     )
     .sort(

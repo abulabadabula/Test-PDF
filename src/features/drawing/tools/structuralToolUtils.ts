@@ -18,7 +18,6 @@ export function makeBase(ctx: ToolContext, type: StructuralElementType, geometry
     type,
     pageIndex: state.pdf.currentPage,
     sheetId: state.planSheet.activeSheetId ?? undefined,
-    layerId: state.layer.activeLayerId,
     geometry,
     properties: {} as any,
     style: {

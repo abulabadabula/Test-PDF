@@ -2,7 +2,6 @@
 
 import { useCallback } from 'react';
 import type { Shape } from '@/app/store/slices/drawingSlice';
-import type { Layer } from '@/app/store/slices/layerSlice';
 import { distance, distanceToSegment, pointInPolygon } from '../geometry/geometryUtils';
 import { hitTestStructuralElement } from '../geometry/hitTest';
 
@@ -30,10 +29,9 @@ const NODE_PICK_TOLERANCE_FACTOR = 0.8;
  * located along edges or inside slabs are easily selectable, and
  * nodes are not accidentally overridden by slab surfaces.
  */
-export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
+export function useHitTest(shapes: Shape[], tolerance = 5) {
   return useCallback((x: number, y: number): Shape | null => {
-    const validLayerIds = new Set(layers.filter((layer) => layer.visible && !layer.locked).map((layer) => layer.id));
-    const currentPageShapes = shapes.filter((shape) => validLayerIds.has(shape.layerId));
+    const currentPageShapes = shapes;
 
     /*
      * -------------------------------------------------------------
@@ -162,5 +160,5 @@ export function useHitTest(shapes: Shape[], layers: Layer[], tolerance = 5) {
     }
 
     return null;
-  }, [shapes, layers, tolerance]);
+  }, [shapes, tolerance]);
 }

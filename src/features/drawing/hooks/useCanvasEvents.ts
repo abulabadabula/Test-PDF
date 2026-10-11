@@ -8,7 +8,10 @@ import {
   beginHistoryTransaction, endHistoryTransaction, copySelected, pasteClipboard,
   setActiveTool, undo, redo
 } from '@/app/store/slices/drawingSlice';
-import { setPageOrigin, setSheetOrigin, selectCoordinateSystem, selectOriginMode, setOriginMode } from '@/app/store/slices/pageCoordinateSlice';
+import { updateStoryAdjust } from '@/app/store/slices/storySlice';
+import { baseFrameForSheet, frameForSheet, frameForStory, frameToPage, pageToFrame } from '@/core/coordinate/storyTransform';
+import { toast } from 'sonner';
+import { ensureSheet, setPageOrigin, setSheetOrigin, selectCoordinateSystem, selectOriginMode, setOriginMode } from '@/app/store/slices/pageCoordinateSlice';
 import { selectActivePlanSheet } from '@/app/store/slices/planSheetSlice';
 import type { Shape } from '@/app/store/slices/drawingSlice';
 import type { StructuralElement } from '../elements/elementTypes';
@@ -215,9 +218,91 @@ export function useCanvasEvents(
       const point = coords(event);
 
       if (originModeRef.current) {
-        if (activePlanSheetRef.current?.id) {
+        const activeSheet = activePlanSheetRef.current;
+        const state = store.getState();
+        const baseSheet = state.planSheet.sheets.find(
+          (sheet) => sheet.id === state.planSheet.baseSheetId,
+        );
+
+        // Clicking the designated base sheet defines one physical origin for
+        // all structural floors. Map that point through the already-aligned
+        // Story frames before updating any sheet coordinate systems.
+        if (activeSheet?.id && baseSheet?.id === activeSheet.id) {
+          const floorSheets = state.planSheet.sheets.filter(
+            (sheet) => sheet.role === 'structural',
+          );
+
+          floorSheets.forEach((sheet) => {
+            dispatch(ensureSheet({ sheetId: sheet.id, pageIndex: sheet.sourcePage }));
+          });
+
+          const latest = store.getState();
+          const latestBase = latest.planSheet.sheets.find(
+            (sheet) => sheet.id === latest.planSheet.baseSheetId,
+          );
+
+          if (latestBase && floorSheets.length > 0) {
+            const baseFrame = baseFrameForSheet(
+              latest.pageCoordinate.pages,
+              latest.pageCoordinate.sheets,
+              latestBase,
+              latest.story.stories,
+            );
+            const sharedPoint = pageToFrame(point, baseFrame);
+
+            const mappedOrigins = floorSheets.map((sheet) => {
+              const story = latest.story.stories.find(
+                (item) => item.sheetId === sheet.id,
+              );
+              const frame = story
+                ? frameForStory(
+                    latest.pageCoordinate.pages,
+                    latest.pageCoordinate.sheets,
+                    story,
+                    latest.planSheet.sheets,
+                  )
+                : frameForSheet(
+                    latest.pageCoordinate.pages,
+                    latest.pageCoordinate.sheets,
+                    sheet,
+                  );
+
+              return {
+                sheet,
+                story,
+                point: frameToPage(sharedPoint, frame),
+              };
+            });
+
+            mappedOrigins.forEach(({ sheet, point: origin }) => {
+              dispatch(setSheetOrigin({
+                sheetId: sheet.id,
+                x: origin.x,
+                y: origin.y,
+              }));
+            });
+
+            // Origins now coincide at (0, 0), so remove Story translations
+            // while preserving the rotation used to align the plan axes.
+            mappedOrigins.forEach(({ sheet, story }) => {
+              if (!story) return;
+              dispatch(updateStoryAdjust({
+                id: story.id,
+                changes: {
+                  dxMm: 0,
+                  dyMm: 0,
+                  rotationDeg: sheet.id === latestBase.id ? 0 : story.adjust.rotationDeg,
+                },
+              }));
+            });
+
+            toast.success('Shared origin set on ' + mappedOrigins.length + ' structural floor sheet(s).');
+          } else {
+            dispatch(setSheetOrigin({ sheetId: activeSheet.id, x: point.x, y: point.y }));
+          }
+        } else if (activeSheet?.id) {
           dispatch(setSheetOrigin({
-            sheetId: activePlanSheetRef.current.id,
+            sheetId: activeSheet.id,
             x: point.x,
             y: point.y,
           }));
@@ -228,6 +313,7 @@ export function useCanvasEvents(
             y: point.y,
           }));
         }
+
         dispatch(setOriginMode(false));
         emitCoordinate(point);
         return;

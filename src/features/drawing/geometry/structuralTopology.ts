@@ -24,11 +24,26 @@ function nearestNode(nodes: NodeElement[], point:{x:number;y:number}, tolerance=
   return best;
 }
 
+/**
+ * Nodes only ever connect to members drawn on the same page and Plan Sheet.
+ * Floors are cropped from different PDF pages (or different regions), so
+ * identical page coordinates on two floors must not be treated as one node.
+ */
+const spaceKey=(s: StructuralElement)=>`${s.pageIndex}|${s.sheetId ?? ''}`;
+
 /** Recover missing node references from geometry. Safe to call repeatedly. */
 export function reconcileStructuralTopology(shapes: Shape[]) {
-  const nodes=shapes.filter(isNode);
+  const nodesBySpace=new Map<string,NodeElement[]>();
+  for (const shape of shapes) {
+    if (!isNode(shape)) continue;
+    const key=spaceKey(shape);
+    const list=nodesBySpace.get(key);
+    if (list) list.push(shape); else nodesBySpace.set(key,[shape]);
+  }
+
   for (const shape of shapes) {
     if (!isStructural(shape) || shape.type==='node') continue;
+    const nodes=nodesBySpace.get(spaceKey(shape)) ?? [];
     const p=shape.properties as any;
 
     if (shape.type==='column') {

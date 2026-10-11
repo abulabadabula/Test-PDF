@@ -5,8 +5,7 @@ import { PdfCanvas } from './PdfCanvas';
 import { PdfDropZone } from './PdfDropZone';
 import { usePdfDocument } from './usePdfDocument';
 import { AnnotationCanvas } from '@/features/drawing/AnnotationCanvas';
-import { DimensionOverlay } from '@/features/layers/DimensionOverlay';
-import { LegendPanel } from '@/features/layers/LegendPanel';
+import { DimensionOverlay } from '@/features/drawing/dimensions/DimensionOverlay';
 import { usePdfFit } from './usePdfFit';
 import { StoryOverlayStack } from '@/features/stories/StoryOverlayStack';
 import { StoryGhostCanvas } from '@/features/stories/StoryGhostCanvas';
@@ -108,7 +107,6 @@ export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage:
               <DimensionOverlay />
             </div>
           </div>
-          <LegendPanel />
         </div>
       </div>
     );
@@ -153,7 +151,6 @@ export const PdfViewer = forwardRef<{ handleFitWidth: () => void; handleFitPage:
             <StoryAlignOverlay />
           </div>
         </div>
-        <LegendPanel />
       </div>
     </div>
   );

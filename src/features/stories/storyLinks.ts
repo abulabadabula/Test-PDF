@@ -34,7 +34,7 @@ export interface VerticalLink {
 export type PageSystems = Record<number, PageCoordinateSystem>;
 export type SheetSystems = Record<string, PageCoordinateSystem>;
 
-function shapeBelongsToStory(
+export function shapeBelongsToStory(
   shape: Shape,
   story: Story,
   sourcePage: number,

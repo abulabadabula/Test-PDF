@@ -7,12 +7,13 @@
 // exact in engineering millimetres and survives zoom changes.
 
 import { useEffect, useRef } from 'react';
-import { Check, Crosshair, RotateCcw } from 'lucide-react';
+import { Check, Crosshair } from 'lucide-react';
 
+import { store } from '@/app/store';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { selectActivePlanSheet } from '@/app/store/slices/planSheetSlice';
+import { moveSheetOrigin } from '@/app/store/slices/pageCoordinateSlice';
+import { selectActivePlanSheet, selectBasePlanSheet } from '@/app/store/slices/planSheetSlice';
 import {
-  resetStoryAdjust,
   setAlignStory,
   updateStoryAdjust,
   type StoryAdjust,
@@ -20,10 +21,12 @@ import {
 import {
   adjustToPlace,
   baseFrameForSheet,
+  foldAdjustIntoOrigin,
   frameForStory,
   planSheetForStory,
   storyPointToBasePage,
 } from '@/core/coordinate/storyTransform';
+import type { PageCoordinateSystem } from '@/core/coordinate/pageCoordinateSystem';
 import { Button } from '@/components/ui/button';
 import { centreUnderlayOnBase } from './underlayActions';
 
@@ -31,6 +34,8 @@ interface DragState {
   startX: number;
   startY: number;
   startAdj: StoryAdjust;
+  /** Coordinate system of the sheet when the drag began. */
+  startCs: PageCoordinateSystem;
 }
 
 export function StoryAlignOverlay() {
@@ -39,9 +44,8 @@ export function StoryAlignOverlay() {
   const alignStoryId = useAppSelector((state) => state.story.alignStoryId);
   const stories = useAppSelector((state) => state.story.stories);
   const planSheets = useAppSelector((state) => state.planSheet.sheets);
-  const baseSheet = useAppSelector(selectActivePlanSheet);
-  const pageSystems = useAppSelector((state) => state.pageCoordinate.pages);
-  const sheetSystems = useAppSelector((state) => state.pageCoordinate.sheets);
+  const baseSheet = useAppSelector(selectBasePlanSheet);
+  const activeSheet = useAppSelector(selectActivePlanSheet);
   const displayScale = useAppSelector((state) => state.pdf.scale);
 
   const story = stories.find((item) => item.id === alignStoryId) ?? null;
@@ -54,29 +58,45 @@ export function StoryAlignOverlay() {
   const latest = useRef({ story, sheet, baseSheet, displayScale });
   latest.current = { story, sheet, baseSheet, displayScale };
 
+  /** Sheet frame as it is right now, read straight from the store. */
+  const currentCs = (): PageCoordinateSystem | null => {
+    const { story } = latest.current;
+    if (!story) return null;
+
+    const state = store.getState();
+    return frameForStory(
+      state.pageCoordinate.pages,
+      state.pageCoordinate.sheets,
+      story,
+      state.planSheet.sheets,
+    ).cs;
+  };
+
   /**
    * Move the underlay so that it ends up `delta` (screen px) away from where
-   * it was when `startAdj` was in force.
+   * it was when the drag began. The resulting translation is folded into the
+   * sheet's own origin marker, so the marker always sits on the shared origin.
    */
   const moveBy = (
     dxPx: number,
     dyPx: number,
     startAdj: StoryAdjust,
+    startCs: PageCoordinateSystem,
   ) => {
     const { story, sheet, baseSheet, displayScale } = latest.current;
     if (!story || !sheet || !baseSheet) return;
 
     const scale = Math.max(displayScale, 0.0001);
+    const state = store.getState();
 
     const base = baseFrameForSheet(
-      pageSystems,
-      sheetSystems,
+      state.pageCoordinate.pages,
+      state.pageCoordinate.sheets,
       baseSheet,
-      stories,
+      state.story.stories,
     );
 
-    const from = frameForStory(pageSystems, sheetSystems, story, planSheets);
-    const fromAtStart = { cs: from.cs, adj: startAdj };
+    const fromAtStart = { cs: startCs, adj: startAdj };
 
     const anchor = {
       x: sheet.crop.x + sheet.crop.width / 2,
@@ -92,7 +112,16 @@ export function StoryAlignOverlay() {
       base,
     );
 
-    dispatch(updateStoryAdjust({ id: story.id, changes: next }));
+    const folded = foldAdjustIntoOrigin(startCs, next);
+
+    dispatch(
+      moveSheetOrigin({
+        sheetId: story.sheetId,
+        x: folded.origin.x,
+        y: folded.origin.y,
+      }),
+    );
+    dispatch(updateStoryAdjust({ id: story.id, changes: folded.adjust }));
   };
 
   useEffect(() => {
@@ -122,12 +151,13 @@ export function StoryAlignOverlay() {
 
       const move = arrows[event.key];
       const current = latest.current.story;
+      const cs = currentCs();
 
-      if (move && current) {
+      if (move && current && cs) {
         event.preventDefault();
         // Stop the viewer's own ← / → page-switching shortcut.
         event.stopPropagation();
-        moveBy(move[0], move[1], current.adjust);
+        moveBy(move[0], move[1], current.adjust, cs);
       }
     };
 
@@ -144,16 +174,17 @@ export function StoryAlignOverlay() {
       window.removeEventListener('keyup', onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alignStoryId, pageSystems, sheetSystems, stories, planSheets]);
+  }, [alignStoryId]);
 
-  // Leave align mode when the base sheet changes or the story disappears.
+  // Drag deltas are measured in the base canvas's page coordinates, so always
+  // leave alignment mode if the user switches away from the designated base.
   useEffect(() => {
-    if (alignStoryId && (!story || !baseSheet || story.sheetId === baseSheet.id)) {
+    if (alignStoryId && (!story || !baseSheet || story.sheetId === baseSheet.id || activeSheet?.id !== baseSheet.id)) {
       dispatch(setAlignStory(null));
     }
-  }, [alignStoryId, story, baseSheet, dispatch]);
+  }, [alignStoryId, story, baseSheet, activeSheet?.id, dispatch]);
 
-  if (!story || !sheet || !baseSheet || story.sheetId === baseSheet.id) {
+  if (!story || !sheet || !baseSheet || story.sheetId === baseSheet.id || activeSheet?.id !== baseSheet.id) {
     return null;
   }
 
@@ -162,10 +193,14 @@ export function StoryAlignOverlay() {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    const startCs = currentCs();
+    if (!startCs) return;
+
     drag.current = {
       startX: event.clientX,
       startY: event.clientY,
       startAdj: { ...story.adjust },
+      startCs,
     };
   };
 
@@ -177,6 +212,7 @@ export function StoryAlignOverlay() {
       event.clientX - state.startX,
       event.clientY - state.startY,
       state.startAdj,
+      state.startCs,
     );
   };
 
@@ -213,9 +249,8 @@ export function StoryAlignOverlay() {
 
         <div className="leading-tight">
           <div className="font-medium">Aligning: {story.name}</div>
-          <div className="font-mono text-[10px] text-muted-foreground">
-            dx {story.adjust.dxMm.toFixed(0)} mm · dy{' '}
-            {story.adjust.dyMm.toFixed(0)} mm
+          <div className="text-[10px] text-muted-foreground">
+            Move this sheet until it sits right against the shared origin.
           </div>
           <div className="text-[10px] text-muted-foreground">
             Drag · arrows nudge (Shift ×10, Alt fine) · Esc to finish
@@ -230,16 +265,6 @@ export function StoryAlignOverlay() {
           onClick={() => centreUnderlayOnBase(story.id)}
         >
           <Crosshair className="h-3 w-3" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          title="Reset translation"
-          onClick={() => dispatch(resetStoryAdjust(story.id))}
-        >
-          <RotateCcw className="h-3 w-3" />
         </Button>
 
         <Button

@@ -6,7 +6,6 @@ export class PolylineTool extends BaseTool {
 
   onMouseDown(e: CanvasEvent, ctx: ToolContext) {
     const rootState = ctx.getState();
-    const activeLayerId = rootState.layer.activeLayerId;
     const drawingState = rootState.drawing;
 
     if (!ctx.tempShape) {
@@ -14,7 +13,6 @@ export class PolylineTool extends BaseTool {
         id: 'temp', 
         type: 'polyline', 
         points: [e.x, e.y, e.x, e.y],
-        layerId: activeLayerId, 
         pageIndex: rootState.pdf.currentPage,
         color: drawingState.currentStrokeColor, 
         strokeWidth: drawingState.currentStrokeWidth, 

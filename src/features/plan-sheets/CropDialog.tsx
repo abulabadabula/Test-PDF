@@ -21,6 +21,7 @@ import {
   assignShapesToSheet,
 } from '@/app/store/slices/drawingSlice';
 import { nanoid } from '@reduxjs/toolkit';
+import { addSheetAsUnderlay } from '@/features/stories/underlayActions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -118,6 +119,19 @@ export function CropDialog({ open, onOpenChange }: CropDialogProps) {
       x: sourceCoordinate.engineeringOrigin.x,
       y: sourceCoordinate.engineeringOrigin.y,
     }));
+
+    // When a Base Floor is already selected, immediately add this new floor to
+    // the comparison stack and centre it for manual alignment.
+    const createdSheet = store.getState().planSheet.sheets.find(
+      (sheet) => sheet.id === id,
+    );
+    if (
+      role === 'structural' &&
+      store.getState().planSheet.baseSheetId &&
+      createdSheet
+    ) {
+      addSheetAsUnderlay(createdSheet);
+    }
 
     dispatch(setCurrentPage(session.sourcePage));
     dispatch(finishCrop());

@@ -5,14 +5,16 @@ import {
   sourcePageForStory,
   type XY,
 } from '@/core/coordinate/storyTransform';
+import { storiesFromStoreys } from '@/features/storeys/storeyModel';
 import { isStructural } from './storyGeometry';
 import { summarizeLevels } from './storyLinks';
 
 export function buildStoryModel(state: RootState) {
-  const {
-    stories,
-    linkToleranceMm,
-  } = state.story;
+  const { linkToleranceMm } = state.story;
+
+  // One entry per storey. Storeys that are similar to a master storey share its
+  // Plan Sheet, so the same members are exported once for every such storey.
+  const stories = storiesFromStoreys(state);
 
   const pageSystems = state.pageCoordinate.pages;
   const sheetSystems = state.pageCoordinate.sheets;
@@ -51,10 +53,14 @@ export function buildStoryModel(state: RootState) {
       const z = story.elevationMm;
       const geometry = shape.geometry as any;
 
+      const uid = `${shape.id}@${story.id}`;
+
       const common = {
-        id: shape.id,
+        id: uid,
+        sourceId: shape.id,
         type: shape.type,
         story: story.name,
+        storeyId: story.id,
         storySheetId: story.sheetId,
         sourcePage,
         z,
@@ -73,8 +79,10 @@ export function buildStoryModel(state: RootState) {
           );
 
           nodes.push({
-            id: shape.id,
+            id: uid,
+            sourceId: shape.id,
             story: story.name,
+            storeyId: story.id,
             storySheetId: story.sheetId,
             sourcePage,
             x: point.x,
@@ -136,8 +144,8 @@ export function buildStoryModel(state: RootState) {
   ).flatMap((level) =>
     level.links.map((link) => ({
       type: 'column',
-      lowerNodeId: link.lower.id,
-      upperNodeId: link.upper.id,
+      lowerNodeId: `${link.lower.id}@${level.lowerStory.id}`,
+      upperNodeId: `${link.upper.id}@${level.upperStory.id}`,
       lowerStory: level.lowerStory.name,
       upperStory: level.upperStory.name,
       lowerSheetId: level.lowerStory.sheetId,
@@ -156,7 +164,7 @@ export function buildStoryModel(state: RootState) {
     meta: {
       units: 'mm',
       note:
-        'x,y are in the common engineering frame derived from the Plan Sheet coordinate system and Story adjustment.',
+        'x,y are in the common engineering frame (shared origin on the base Plan Sheet). z is the top elevation of the storey; storeys similar to a master storey repeat its members.',
       linkToleranceMm,
       skippedElementsWithoutStory: skipped,
       exportedAt: new Date().toISOString(),
@@ -164,6 +172,7 @@ export function buildStoryModel(state: RootState) {
     stories: [...stories]
       .sort((a, b) => a.elevationMm - b.elevationMm)
       .map((story) => ({
+        id: story.id,
         name: story.name,
         sheetId: story.sheetId,
         page: sourcePageForStory(

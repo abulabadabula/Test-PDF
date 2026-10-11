@@ -27,6 +27,9 @@ export interface CropSession {
 
 export interface PlanSheetState {
   sheets: PlanSheet[];
+  /** Sheet used as the fixed reference for floor-to-floor alignment. */
+  baseSheetId: string | null;
+  /** Sheet currently shown for editing on the canvas. */
   activeSheetId: string | null;
   cropMode: boolean;
   cropSelection: CropRect | null;

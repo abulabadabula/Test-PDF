@@ -36,7 +36,6 @@ export interface StructuralBase {
   pageIndex: number;
   /** Virtual Plan Sheet that owns this structural element. */
   sheetId?: string;
-  layerId: string;
   properties: Record<string, string | number | string[]>;
   style: ElementStyle;
   label: string;

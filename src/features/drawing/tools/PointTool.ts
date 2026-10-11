@@ -6,16 +6,13 @@ export class PointTool extends BaseTool {
   
   onMouseDown(e: CanvasEvent, ctx: ToolContext) {
     const rootState = ctx.getState();
-    const activeLayerId = rootState.layer.activeLayerId;
     const drawingState = rootState.drawing;
 
-    // 【修复】：添加 as PointShape 断言，并确保 activeLayerId 来源正确
     ctx.addShape({
       type: 'point', 
       x: e.x, 
       y: e.y, 
       radius: 5,
-      layerId: activeLayerId, 
       pageIndex: rootState.pdf.currentPage,
       color: drawingState.currentStrokeColor, 
       strokeWidth: drawingState.currentStrokeWidth, 

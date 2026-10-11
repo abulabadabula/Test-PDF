@@ -94,14 +94,14 @@ export function ensureNodeLabel(elements: Shape[]): string { // 修改为 Shape[
 export function createNodeElement(params: {
   point: PagePoint;
   pageIndex: number;
-  layerId: string;
+  sheetId?: string;
   style?: Partial<ElementStyle>;
   label: string;
 }): NodeElement {
   const {
     point,
     pageIndex,
-    layerId,
+    sheetId,
     style,
     label,
   } = params;
@@ -113,7 +113,7 @@ export function createNodeElement(params: {
     id: nanoid(),
     type: 'node',
     pageIndex,
-    layerId,
+    sheetId,
 
     geometry: {
       x: point.x,
@@ -155,7 +155,7 @@ export function resolveNode(
   elements: Shape[], // 修改为 Shape[]
   params: {
     pageIndex: number;
-    layerId: string;
+    sheetId?: string;
     style?: Partial<ElementStyle>;
     tolerance?: number;
   }
@@ -173,7 +173,7 @@ export function resolveNode(
     node: createNodeElement({
       point,
       pageIndex: params.pageIndex,
-      layerId: params.layerId,
+      sheetId: params.sheetId,
       style: params.style,
       label,
     }),

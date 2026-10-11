@@ -25,8 +25,6 @@ export function AnnotationCanvas() {
   const currentPage = useAppSelector((state) => state.pdf.currentPage);
   const activePlanSheet = useAppSelector(selectActivePlanSheet);
   const cropMode = useAppSelector(selectCropMode);
-  const layers = useAppSelector((state) => state.layer.layers);
-  const activeLayerId = useAppSelector((state) => state.layer.activeLayerId);
   const shapes = useAppSelector((state) =>
     selectShapesBySheet(
       state,
@@ -95,7 +93,6 @@ export function AnnotationCanvas() {
 
   const hitTest = useHitTest(
     shapes,
-    layers,
     5 / Math.max(displayScale, 0.0001)
   );
 
@@ -159,13 +156,8 @@ export function AnnotationCanvas() {
         });
       }
 
-      const visible = new Set(
-        layers.filter((layer) => layer.visible).map((layer) => layer.id)
-      );
-
-      const visibleShapes = shapes.filter((s) => visible.has(s.layerId));
-      const nonPointShapes = visibleShapes.filter((s) => s.type !== 'point');
-      const pointShapes = visibleShapes.filter((s) => s.type === 'point');
+      const nonPointShapes = shapes.filter((s) => s.type !== 'point');
+      const pointShapes = shapes.filter((s) => s.type === 'point');
 
       nonPointShapes.forEach((shape) => {
         renderShape(ctx, shape, selectedShapes.some((selected) => selected.id === shape.id), {
@@ -244,7 +236,6 @@ export function AnnotationCanvas() {
     tempShape,
     selectedShapes,
     displayScale,
-    layers,
     snapPoint,
     selectionRect,
     canvasSizeVersion,
@@ -268,7 +259,6 @@ export function AnnotationCanvas() {
           text: textInput.trim(),
           fontSize: 16,
           fontFamily: 'sans-serif',
-          layerId: activeLayerId,
           pageIndex: currentPage,
           sheetId: activePlanSheet?.id,
           color: '#000000',
@@ -281,7 +271,7 @@ export function AnnotationCanvas() {
 
     setTextDialog({ x: 0, y: 0, open: false });
     setTextInput('');
-  }, [dispatch, textInput, textDialog.x, textDialog.y, activeLayerId, currentPage, activePlanSheet?.id]);
+  }, [dispatch, textInput, textDialog.x, textDialog.y, currentPage, activePlanSheet?.id]);
 
   useCanvasEvents(
     canvasRef,

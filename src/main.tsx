@@ -11,7 +11,6 @@ import './index.css' // 确保创建此文件并写入 @import "tailwindcss";
 //   reducer: {
 //     // pdfViewer: pdfViewerReducer,
 //     // drawing: drawingReducer,
-//     // layers: layersReducer,
 //   },
 // })
 

@@ -23,7 +23,6 @@ export class MeasureTool extends BaseTool {
       realLength: 0,
       unit,
       scaleRatio: `${drawing.scaleNumerator}:${drawing.scaleDenominator}`,
-      layerId: state.layer.activeLayerId,
       pageIndex: state.pdf.currentPage,
       color: drawing.currentStrokeColor,
       strokeWidth: drawing.currentStrokeWidth,

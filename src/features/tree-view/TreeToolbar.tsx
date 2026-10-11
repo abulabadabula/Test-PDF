@@ -1,18 +1,10 @@
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { deleteSelected, updateShape } from '@/app/store/slices/drawingSlice';
+import { deleteSelected } from '@/app/store/slices/drawingSlice';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Search, Trash2, Layers } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import type { SortBy } from './types';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { useState } from 'react';
 
 interface TreeToolbarProps {
   searchQuery: string;
@@ -24,8 +16,6 @@ interface TreeToolbarProps {
 export function TreeToolbar({ searchQuery, setSearchQuery, sortBy, setSortBy }: TreeToolbarProps) {
   const dispatch = useAppDispatch();
   const selectedIds = useAppSelector(state => state.drawing.selectedShapeIds);
-  const layers = useAppSelector(state => state.layer.layers);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
 
   //const handleSelectAll = () => {
     // 简化：全选当前页所有可见图形
@@ -36,13 +26,6 @@ export function TreeToolbar({ searchQuery, setSearchQuery, sortBy, setSortBy }: 
     if (selectedIds.length > 0) {
       dispatch(deleteSelected());
     }
-  };
-
-  const handleBatchMove = (targetLayerId: string) => {
-    selectedIds.forEach(id => {
-      dispatch(updateShape({ id, changes: { layerId: targetLayerId } }));
-    });
-    setMoveDialogOpen(false);
   };
 
   return (
@@ -70,29 +53,9 @@ export function TreeToolbar({ searchQuery, setSearchQuery, sortBy, setSortBy }: 
         </Select>
 
         {selectedIds.length > 0 && (
-          <>
-            <Button variant="destructive" size="icon" className="h-7 w-7" onClick={handleBatchDelete} title="批量删除">
-              <Trash2 className="h-3 w-3" />
-            </Button>
-            <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="h-7 w-7" title="批量移动">
-                  <Layers className="h-3 w-3" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[300px]">
-                <DialogHeader><DialogTitle>移动到图层</DialogTitle></DialogHeader>
-                <div className="space-y-1 mt-2">
-                  {layers.map(l => (
-                    <Button key={l.id} variant="ghost" className="w-full justify-start h-8 text-xs" onClick={() => handleBatchMove(l.id)}>
-                      <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: l.color }} />
-                      {l.name}
-                    </Button>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
-          </>
+          <Button variant="destructive" size="icon" className="h-7 w-7" onClick={handleBatchDelete} title="批量删除">
+            <Trash2 className="h-3 w-3" />
+          </Button>
         )}
       </div>
     </div>
