@@ -19,6 +19,7 @@ const clampCrop = (crop: CropRect): CropRect => ({
 
 const initialState: PlanSheetState = {
   sheets: [],
+  baseSheetId: null,
   activeSheetId: null,
   cropMode: false,
   cropSelection: null,
@@ -78,6 +79,9 @@ export const planSheetSlice = createSlice({
     removePlanSheet: (state, action: PayloadAction<string>) => {
       state.sheets = state.sheets.filter((sheet) => sheet.id !== action.payload);
 
+      // Require an explicit choice if the designated base floor is deleted.
+      if (state.baseSheetId === action.payload) state.baseSheetId = null;
+
       if (state.activeSheetId === action.payload) {
         state.activeSheetId = state.sheets[0]?.id ?? null;
       }
@@ -112,6 +116,10 @@ export const planSheetSlice = createSlice({
 
     setActivePlanSheet: (state, action: PayloadAction<string | null>) => {
       state.activeSheetId = action.payload;
+    },
+
+    setBasePlanSheet: (state, action: PayloadAction<string | null>) => {
+      state.baseSheetId = action.payload;
     },
 
     activatePlanSheetForPage: (state, action: PayloadAction<number>) => {
@@ -168,6 +176,7 @@ export const {
   removePlanSheet,
   duplicatePlanSheet,
   setActivePlanSheet,
+  setBasePlanSheet,
   activatePlanSheetForPage,
   setCropMode,
   beginCrop,
@@ -180,6 +189,9 @@ export const selectPlanSheets = (state: RootState) => state.planSheet.sheets;
 
 export const selectActivePlanSheet = (state: RootState) =>
   state.planSheet.sheets.find((sheet) => sheet.id === state.planSheet.activeSheetId) ?? null;
+
+export const selectBasePlanSheet = (state: RootState) =>
+  state.planSheet.sheets.find((sheet) => sheet.id === state.planSheet.baseSheetId) ?? null;
 
 export const selectPlanSheetsForPage = (state: RootState, sourcePage: number) =>
   state.planSheet.sheets.filter((sheet) => sheet.sourcePage === sourcePage);

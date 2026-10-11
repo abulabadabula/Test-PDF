@@ -182,6 +182,29 @@ export const pageCoordinateSlice = createSlice({
       state.originMode = false;
     },
 
+    /**
+     * Move a sheet's origin marker without resetting its engineering origin or
+     * leaving origin-pick mode. Used when a sheet is translated into alignment.
+     */
+    moveSheetOrigin: (
+      state,
+      action: PayloadAction<{
+        sheetId: string;
+        x: number;
+        y: number;
+      }>,
+    ) => {
+      const { sheetId, x, y } = action.payload;
+      const current =
+        state.sheets[sheetId] ??
+        createDefaultPageCoordinateSystem();
+
+      state.sheets[sheetId] = sanitizePageCoordinateSystem({
+        ...current,
+        origin: { x, y },
+      });
+    },
+
     setEngineeringOrigin: (
       state,
       action: PayloadAction<{
@@ -270,6 +293,7 @@ export const {
   setSheetUnit,
   setPageOrigin,
   setSheetOrigin,
+  moveSheetOrigin,
   setEngineeringOrigin,
   setSheetEngineeringOrigin,
   setOriginMode,

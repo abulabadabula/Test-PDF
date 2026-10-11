@@ -4,6 +4,7 @@
 // shared frame. A Story now references a Plan Sheet; pageIndex remains only as
 // legacy PDF source metadata.
 
+import { pagePtToRealMm } from './engineeringScale';
 import {
   DEFAULT_PAGE_COORDINATE_SYSTEM,
   engineeringMmToPagePoint,
@@ -259,5 +260,42 @@ export function adjustToPlace(
     dxMm: goal.x - (m.x * c - m.y * s),
     dyMm: goal.y - (m.x * s + m.y * c),
     rotationDeg: from.adj.rotationDeg,
+  };
+}
+
+
+/**
+ * Fold the translation of a sheet's placement into its own origin.
+ *
+ * The shared origin is defined on the base sheet. A sheet that is translated
+ * into alignment keeps the same engineering coordinates for every point, but
+ * the position of the shared origin inside that sheet changes. Moving the
+ * sheet's origin marker (and zeroing the translation) keeps the sheet's own
+ * coordinates, grid and status-bar readout equal to the shared coordinates.
+ * Rotation is kept as is.
+ */
+export function foldAdjustIntoOrigin(
+  cs: PageCoordinateSystem,
+  adj: StoryAdjust,
+): { origin: XY; adjust: StoryAdjust } {
+  const k = pagePtToRealMm(1, cs.scaleNumerator, cs.scaleDenominator) || 1;
+  const r = (adj.rotationDeg * Math.PI) / 180;
+  const c = Math.cos(r);
+  const s = Math.sin(r);
+
+  // R^-1 * d, then negated: the shift of the origin in engineering mm.
+  const shiftX = -(adj.dxMm * c + adj.dyMm * s);
+  const shiftY = -(-adj.dxMm * s + adj.dyMm * c);
+
+  return {
+    origin: {
+      x: cs.origin.x + shiftX / k,
+      y: cs.origin.y - shiftY / k,
+    },
+    adjust: {
+      dxMm: 0,
+      dyMm: 0,
+      rotationDeg: adj.rotationDeg,
+    },
   };
 }

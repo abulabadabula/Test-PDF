@@ -22,6 +22,8 @@ export interface Story {
   elevationMm: number;
   overlayVisible: boolean;
   overlayOpacity: number;
+  /** Prevent accidental changes after a floor drawing has been aligned. */
+  alignmentLocked: boolean;
   tint: string;
   showGhostElements: boolean;
   adjust: StoryAdjust;
@@ -70,6 +72,7 @@ function createStory(
     elevationMm: order * DEFAULT_STORY_HEIGHT_MM,
     overlayVisible,
     overlayOpacity: 0.4,
+    alignmentLocked: false,
     tint: TINTS[order % TINTS.length],
     showGhostElements: true,
     adjust: { ...ZERO_ADJUST },
@@ -205,12 +208,30 @@ export const storySlice = createSlice({
       if (story) story.adjust = { ...ZERO_ADJUST };
     },
 
+    /** Lock/unlock a floor after manual alignment. A locked floor cannot enter drag alignment. */
+    setStoryAlignmentLocked: (
+      state,
+      action: PayloadAction<{ id: string; locked: boolean }>,
+    ) => {
+      const story = state.stories.find((item) => item.id === action.payload.id);
+      if (!story) return;
+
+      story.alignmentLocked = action.payload.locked;
+      if (story.alignmentLocked && state.alignStoryId === story.id) {
+        state.alignStoryId = null;
+      }
+    },
+
     /** Enter / leave interactive drag-to-align mode for a story's underlay. */
     setAlignStory: (state, action: PayloadAction<string | null>) => {
-      state.alignStoryId = action.payload;
+      const requested = state.stories.find((item) => item.id === action.payload);
+      if (requested?.alignmentLocked) {
+        state.alignStoryId = null;
+        return;
+      }
 
-      const story = state.stories.find((item) => item.id === action.payload);
-      if (story) story.overlayVisible = true;
+      state.alignStoryId = action.payload;
+      if (requested) requested.overlayVisible = true;
     },
 
     removeStory: (state, action: PayloadAction<string>) => {
@@ -253,6 +274,7 @@ export const {
   updateStory,
   updateStoryAdjust,
   resetStoryAdjust,
+  setStoryAlignmentLocked,
   setAlignStory,
   removeStory,
   setAllOverlays,

@@ -4,11 +4,11 @@ import { configureStore } from '@reduxjs/toolkit';
 
 import { pdfSlice } from './slices/pdfSlice';
 import { drawingSlice, undoableMiddleware } from './slices/drawingSlice';
-import { layerSlice } from './slices/layerSlice';
 import { uiSlice } from './slices/uiSlice';
 import { aiSlice } from './slices/aiSlice';
 import { pageCoordinateSlice } from './slices/pageCoordinateSlice';
 import { storySlice } from './slices/storySlice';
+import { storeySlice } from './slices/storeySlice';
 import { planSheetSlice } from './slices/planSheetSlice';
 import { propertiesSlice } from './slices/propertiesSlice';
 import { loadsSlice } from './slices/loadSlice';
@@ -19,8 +19,8 @@ export const store = configureStore({
     pdf: pdfSlice.reducer,
     drawing: drawingSlice.reducer,
     pageCoordinate: pageCoordinateSlice.reducer,
-    layer: layerSlice.reducer,
     story: storySlice.reducer,
+    storey: storeySlice.reducer,
     planSheet: planSheetSlice.reducer,
     ui: uiSlice.reducer,
     ai: aiSlice.reducer,

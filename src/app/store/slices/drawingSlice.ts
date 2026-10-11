@@ -13,7 +13,6 @@ export type ToolType =
 interface BaseShape {
   id: string;
   type: Exclude<ToolType, StructuralElementType | 'select' | 'eraser'>;
-  layerId: string;
   pageIndex: number;
   /** Virtual Plan Sheet that owns this shape; optional for legacy data. */
   sheetId?: string;
@@ -599,9 +598,6 @@ export const selectShapesForActivePlanSheet = (s: RootState) => {
     sourcePage,
   );
 };
-
-export const selectShapesByLayer = (s: RootState, layerId: string) =>
-  s.drawing.shapes.filter((x) => x.layerId === layerId);
 
 export const selectSelectedShapes = (s: RootState) =>
   s.drawing.shapes.filter((x) => s.drawing.selectedShapeIds.includes(x.id));
